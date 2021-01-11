@@ -34,8 +34,7 @@ class PSolverSAT
     int row = 0;
     int column = 0;
     int minErase = 3;
-    int steps = 25;
-    int size = 1000;
+    std::array<int, pad::ORB_COUNT> orbInfo;
     bool debug = true;
 
     /// Read board from filePath, return the board
@@ -135,9 +134,19 @@ class PSolverSAT
         this->board = PBoard(currBoard);
     }
 
-    bool ok()
+    void getBoardInfo()
     {
-        return true;
+        board.traverse([&](int x, int y, Orb orb) {
+            orbInfo[int(orb)]++;
+        });
+    }
+
+    int score()
+    {
+        board.traverse([](int x, int y, int orb) {
+
+        });
+        return 0;
     }
 
     OrbLocation getRandomLocation()
@@ -154,8 +163,7 @@ public:
     PSolverSAT(const std::string &filePath, int minErase, int steps, int size)
     {
         this->minErase = minErase;
-        this->steps = steps;
-        this->size = size;
+        this->orbInfo.fill(0);
 
         if (filePath.find(".txt") != std::string::npos)
         {
@@ -174,7 +182,7 @@ public:
         OrbLocation currLoc = getRandomLocation();
         OrbLocation lastLoc = currLoc;
         // Keep going until the board is solved
-        while (!ok())
+        while (score() > 0)
         {
             int first = currLoc.first, second = currLoc.second;
             int r = rand() % 4;
