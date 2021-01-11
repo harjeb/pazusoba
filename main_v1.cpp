@@ -1,8 +1,9 @@
 #include <iostream>
-#include "core/v1/solver.h"
+// #include "core/v1/solver.h"
+#include "core/v1/solver_sat.h"
 
 /// This handles user input from the console, mainly board file and min erase condition
-PSolver *handleInput(int, char **);
+PSolverSAT *handleInput(int, char **);
 
 int main(int argc, char *argv[])
 {
@@ -13,7 +14,7 @@ int main(int argc, char *argv[])
     return 0;
 }
 
-PSolver *handleInput(int argc, char *argv[])
+PSolverSAT *handleInput(int argc, char *argv[])
 {
     std::string filePath = "assets/sample_board_floodfill_bug.txt";
     // std::string filePath = "RHGHDRGLBLHGDBLLHBBBHRLHGHDGLB";
@@ -45,5 +46,5 @@ PSolver *handleInput(int argc, char *argv[])
         maxSize = atoi(argv[4]);
     }
 
-    return new PSolver(filePath, minErase, maxStep, maxSize);
+    return new PSolverSAT(filePath, minErase, maxStep, maxSize);
 }
