@@ -20,7 +20,7 @@ args = argv
 board_str = "RHGHDRGLBLHGDBLLHBBBHRLHGHDGLB"
 min_erase = 3
 depth = 30
-width = 5000
+width = 500
 
 if arg_len > 1:
     board_str = args[1]
