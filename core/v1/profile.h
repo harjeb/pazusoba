@@ -54,8 +54,9 @@ public:
         for (auto &p : profiles)
         {
             score += p->getScore(list, board, moveCount);
-        }
 
+        }
+        //std::cout << score;
         return score;
     }
 
@@ -109,6 +110,7 @@ public:
     {
         int score = 0;
         int combo = list.size();
+        
 
         // Check if there are orbs next to each other
         int orbAround = 0;
@@ -211,9 +213,10 @@ public:
             // Always aim for max combo by default
             score += pad::TIER_ONE_SCORE * orbAround;
             score += pad::TIER_TWO_SCORE * orbNext2;
-            score += pad::TIER_TEN_SCORE * combo;
+            score += pad::TIER_FIVE_SCORE * combo;
+            //std::cout << combo << "###############\n";
         }
-
+        //std::cout << score << "~~~~~~~~~\n";
         return score;
     }
 };
@@ -259,7 +262,8 @@ public:
         }
 
         // Check if colours matches
-        score += colours.size() * pad::TIER_SIX_SCORE;
+        score += colours.size() * pad::TIER_SEVEN_SCORE;
+        //std::cout << score << "!!!!!!!!!!!!\n";
         return score;
     }
 };
@@ -315,8 +319,10 @@ public:
             if (c.size() == 4 && isTheOrb(c[0].orb))
             {
                 score += pad::TIER_SIX_SCORE;
+
             }
         }
+        //std::cout << score << "~~~~~~~~~\n";
         return score;
     }
 };
