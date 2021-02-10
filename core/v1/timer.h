@@ -37,7 +37,7 @@ public:
     {
         auto end = std::chrono::system_clock::now();
         std::chrono::duration<double> t = end - timers[key];
-        std::cout << "Key " << key << " - time: " << t.count() << "s\n";
+        //std::cout << "Key " << key << " - time: " << t.count() << "s\n";
     }
 };
 

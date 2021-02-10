@@ -79,13 +79,13 @@ std::vector<Route> PSolver::solve()
     //     new ComboProfile,
     //     new TwoWayProfile({pad::fire, pad::water, pad::wood, pad::light,
     //     pad::dark})};
-    // Combo
-    // std::vector<Profile *> profiles{
-    //     new ComboProfile,
-    //     new TwoWayProfile({pad::light}),
-    //     new ColourProfile};
+    //Combo
+    std::vector<Profile *> profiles{
+        new ComboProfile,
+        new TwoWayProfile({pad::water}),
+        new ColourProfile({pad::water,pad::fire})};
     // Just combo
-    std::vector<Profile *> profiles{new ComboProfile};
+    // std::vector<Profile *> profiles{new ComboProfile};
     // Laou
     // std::vector<Profile *> profiles{
     //     new ComboProfile,
@@ -185,6 +185,7 @@ std::vector<Route> PSolver::solve()
 
                     // Save current score for printing out later
                     int currentScore = currentState->score;
+                    //std::cout << currentScore << "~~~~~~~";
                     int currentStep = currentState->step;
 
                     // Save best scores
