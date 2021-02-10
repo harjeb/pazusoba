@@ -307,7 +307,13 @@ void PBoard::printBoardForSimulation()
     for (int i = 0; i < row * column; i++)
     {
         auto orb = board[i];
-        std::cout << pad::ORB_SIMULATION_NAMES[orb];
+        auto m= i+1;
+        if (m%column==0){
+            std::cout << pad::ORB_SIMULATION_NAMES[orb] << "\n";
+        }
+        else{
+            std::cout << pad::ORB_SIMULATION_NAMES[orb];
+        }
         ss << (int)(orb - 1);
     }
     std::cout << std::endl;
