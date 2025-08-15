@@ -224,18 +224,55 @@ void solver::evaluate(game_board& board, state& new_state) {
     int combo = 0;
     int move_count = 0;
     game_board copy = board;
-    while (true) {
+    game_board prev_board = board;  // 用于检测棋盘状态是否重复
+    const int MAX_ELIMINATION_ROUNDS = 20;  // 防止无限循环的保护机制
+
+    DEBUG_PRINT("=== Starting combo elimination loop ===\n");
+
+    while (move_count < MAX_ELIMINATION_ROUNDS) {
+        DEBUG_PRINT("Elimination round %d:\n", move_count + 1);
+        list.clear();  // 确保列表在每次调用前是空的
         erase_combo(copy, list);
         int combo_count = list.size();
+        DEBUG_PRINT("Combo count this round: %d\n", combo_count);
+
         // Check if there are more combo
-        if (combo_count > combo) {
-            combo = combo_count;
+        if (combo_count > 0) {
+            // 修复：combo应该是连锁的轮数，而不是累加每轮的combo数量
+            combo = move_count + 1;  // combo等于当前轮数
+            DEBUG_PRINT("Current combo chain length: %d\n", combo);
+
+            // 保存当前棋盘状态
+            prev_board = copy;
             move_orbs_down(copy);
+
+            // 检测棋盘状态是否重复（死循环检测）
+            bool board_unchanged = true;
+            for (int i = 0; i < BOARD_SIZE; i++) {
+                if (copy[i] != prev_board[i]) {
+                    board_unchanged = false;
+                    break;
+                }
+            }
+
+            if (board_unchanged) {
+                DEBUG_PRINT("WARNING: Board state unchanged after move_orbs_down, breaking to prevent infinite loop\n");
+                break;
+            }
+
             move_count++;
+            DEBUG_PRINT("Move count: %d\n", move_count);
         } else {
+            DEBUG_PRINT("No new combos, breaking loop\n");
             break;
         }
     }
+
+    if (move_count >= MAX_ELIMINATION_ROUNDS) {
+        DEBUG_PRINT("WARNING: Maximum elimination rounds reached, breaking to prevent infinite loop\n");
+    }
+
+    DEBUG_PRINT("Final combo count: %d, Total rounds: %d\n", combo, move_count);
 
     // track if all goals are reached
     int goal = 0;
@@ -541,6 +578,7 @@ void solver::evaluate(game_board& board, state& new_state) {
 }
 
 void solver::erase_combo(game_board& board, combo_list& list) {
+    DEBUG_PRINT("=== erase_combo called ===\n");
     visit_board visited_location{0};
     
     // First, check for 3x3 squares (9-grid pattern)
@@ -560,9 +598,13 @@ void solver::erase_combo(game_board& board, combo_list& list) {
         visit_queue.emplace(curr_index);
 
         // start exploring until all connected orbs are visited
-        while (!visit_queue.empty()) {
+        int visit_count = 0;
+        const int MAX_VISIT_COUNT = BOARD_SIZE * 2;  // 防止无限循环
+
+        while (!visit_queue.empty() && visit_count < MAX_VISIT_COUNT) {
             int to_visit = visit_queue.front();
             visit_queue.pop();
+            visit_count++;
 
             // number of connected orbs in all directions
             int counter[4]{0};
@@ -572,12 +614,16 @@ void solver::erase_combo(game_board& board, combo_list& list) {
                 int direction = DIRECTION_ADJUSTMENTS[i];
                 // this needs to be unsigned to avoid negatives
                 tiny next = to_visit;
+                int step_count = 0;
+                const int MAX_STEPS = BOARD_SIZE;  // 防止单方向无限循环
+
                 // going in that direction until a different orb is found
-                while (true) {
+                while (step_count < MAX_STEPS) {
                     if (direction == -1 && next % COLUMN == 0)
                         break;  // invalid, on the left edge
 
                     next += direction;
+                    step_count++;
 
                     if (direction == 1 && next % COLUMN == 0)
                         break;  // invalid, on the right edge
@@ -621,6 +667,14 @@ void solver::erase_combo(game_board& board, combo_list& list) {
                         break;  // different colour
                     }
                 }
+
+                if (step_count >= MAX_STEPS) {
+                    DEBUG_PRINT("WARNING: Maximum steps reached in direction %d, breaking to prevent infinite loop\n", i);
+                }
+            }
+
+            if (visit_count >= MAX_VISIT_COUNT) {
+                DEBUG_PRINT("WARNING: Maximum visit count reached, breaking to prevent infinite loop\n");
             }
 
             // only 2 same orbs are needed to make 3 in a row
@@ -653,9 +707,13 @@ void solver::erase_combo(game_board& board, combo_list& list) {
         }
 
         // add this combo to the list
-        if ((int)c.loc.size() >= MIN_ERASE)
+        if ((int)c.loc.size() >= MIN_ERASE) {
             list.push_back(c);
+            DEBUG_PRINT("Regular combo added: size %d, color %d\n", (int)c.loc.size(), c.info);
+        }
     }
+    
+    DEBUG_PRINT("Total combos found in erase_combo: %d\n", (int)list.size());
 }
 
 void solver::move_orbs_down(game_board& board) {
@@ -929,6 +987,9 @@ std::string solver::get_board_string(const game_board& board) const {
 }
 
 void solver::check_3x3_squares(game_board& board, combo_list& list, visit_board& visited_location) {
+    DEBUG_PRINT("=== check_3x3_squares called ===\n");
+    int squares_found = 0;
+    
     // Check each possible top-left corner of a 3x3 square
     for (int row = 0; row <= ROW - 3; row++) {
         for (int col = 0; col <= COLUMN - 3; col++) {
@@ -954,6 +1015,9 @@ void solver::check_3x3_squares(game_board& board, combo_list& list, visit_board&
             }
             
             if (is_square) {
+                DEBUG_PRINT("3x3 square found at (%d,%d) with color %d\n", row, col, orb);
+                squares_found++;
+                
                 // Create a combo for this 3x3 square
                 combo c(orb);
                 c.loc = square_locations;
@@ -968,6 +1032,8 @@ void solver::check_3x3_squares(game_board& board, combo_list& list, visit_board&
             }
         }
     }
+    
+    DEBUG_PRINT("3x3 squares found: %d\n", squares_found);
 }
 
 bool solver::is_3x3_square(const std::unordered_set<int>& locations, int column) const {
