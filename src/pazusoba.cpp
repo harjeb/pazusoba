@@ -447,6 +447,78 @@ void solver::evaluate(game_board& board, state& new_state) {
             } break;
 
             case shape_square: {
+                // FORCE 3x3 MODE: Massively prioritize 3x3 squares over everything else
+                bool found_3x3 = false;
+                printf("DEBUG: Checking %d combos for 3x3 squares\n", (int)list.size());
+                for (const auto& c : list) {
+                    printf("DEBUG: Combo of orb %d, size %d, orb_counter[%d]=%d\n", 
+                           c.info, (int)c.loc.size(), c.info, ORB_COUNTER[c.info]);
+                    if (profile.orbs[c.info] && ORB_COUNTER[c.info] >= 9) {
+                        int size = c.loc.size();
+                        if (size >= 9) {
+                            // Check if it forms a 3x3 square
+                            printf("DEBUG: Checking 3x3 for orb %d with size %d\n", c.info, size);
+                            if (is_3x3_square(c.loc, COLUMN)) {
+                                printf("DEBUG: FOUND 3x3 SQUARE! Orb %d\n", c.info);
+                                score += 50000;  // MASSIVE score for 3x3
+                                goal++;
+                                found_3x3 = true;
+                            } else {
+                                printf("DEBUG: Not a 3x3 square\n");
+                            }
+                        }
+                    }
+                }
+                
+                // If we found a 3x3, ignore all other scoring
+                if (found_3x3) {
+                    new_state.combo = combo;
+                    new_state.score = score;
+                    new_state.goal = (goal > 0);
+                    return;
+                }
+                
+                // If no 3x3 found, look for potential 3x3 formation
+                // Check for clusters of 6+ orbs that could become 3x3
+                for (const auto& c : list) {
+                    if (ORB_COUNTER[c.info] >= 9) {
+                        int size = c.loc.size();
+                        if (size >= 6) {
+                            score += size * 20;  // Reward large clusters
+                        }
+                    }
+                }
+                
+                // Check 3x3 potential for each color with 9+ orbs
+                for (int orb_type = 1; orb_type < ORB_COUNT; orb_type++) {
+                    if (ORB_COUNTER[orb_type] >= 9) {
+                        // Analyze 3x3 potential for this orb type
+                        for (int top_row = 0; top_row <= ROW - 3; top_row++) {
+                            for (int top_col = 0; top_col <= COLUMN - 3; top_col++) {
+                                int matching_orbs = 0;
+                                
+                                // Count matching orbs in this 3x3 area
+                                for (int i = 0; i < 3; i++) {
+                                    for (int j = 0; j < 3; j++) {
+                                        int pos = (top_row + i) * COLUMN + (top_col + j);
+                                        if (copy[pos] == orb_type) {
+                                            matching_orbs++;
+                                        }
+                                    }
+                                }
+                                
+                                // Score based on 3x3 potential
+                                if (matching_orbs >= 6) {
+                                    score += 1000;  // Very close to 3x3
+                                } else if (matching_orbs >= 4) {
+                                    score += 200;   // Good potential
+                                } else if (matching_orbs >= 2) {
+                                    score += 50;    // Some potential
+                                }
+                            }
+                        }
+                    }
+                }
             } break;
 
             case shape_row: {
@@ -472,7 +544,11 @@ void solver::evaluate(game_board& board, state& new_state) {
 
 void solver::erase_combo(game_board& board, combo_list& list) {
     visit_board visited_location{0};
-    // start from the bottom and check for combos
+    
+    // First, check for 3x3 squares (9-grid pattern)
+    check_3x3_squares(board, list, visited_location);
+    
+    // Then, check for regular combos
     for (int curr_index = BOARD_SIZE - 1; curr_index >= 0; curr_index--) {
         if (visited_location[curr_index])
             continue;  // already visited even if it is not erased
@@ -841,6 +917,73 @@ std::string solver::get_board_string(const game_board& board) const {
         board_string[i] = ORB_WEB_NAME[orb];
     }
     return std::string(board_string);
+}
+
+void solver::check_3x3_squares(game_board& board, combo_list& list, visit_board& visited_location) {
+    // Check each possible top-left corner of a 3x3 square
+    for (int row = 0; row <= ROW - 3; row++) {
+        for (int col = 0; col <= COLUMN - 3; col++) {
+            int top_left = INDEX_OF(row, col);
+            auto orb = board[top_left];
+            
+            if (orb == 0) continue;  // already erased
+            
+            // Check if this 3x3 area forms a square of the same color
+            bool is_square = true;
+            std::unordered_set<int> square_locations;
+            
+            for (int i = 0; i < 3; i++) {
+                for (int j = 0; j < 3; j++) {
+                    int index = INDEX_OF(row + i, col + j);
+                    if (board[index] != orb) {
+                        is_square = false;
+                        break;
+                    }
+                    square_locations.insert(index);
+                }
+                if (!is_square) break;
+            }
+            
+            if (is_square) {
+                // Create a combo for this 3x3 square
+                combo c(orb);
+                c.loc = square_locations;
+                
+                // Mark all positions as visited and erase them
+                for (int loc : square_locations) {
+                    visited_location[loc] = true;
+                    board[loc] = 0;
+                }
+                
+                list.push_back(c);
+            }
+        }
+    }
+}
+
+bool solver::is_3x3_square(const std::unordered_set<int>& locations, int column) const {
+    if (locations.size() != 9) return false;
+    
+    // Find the minimum row and column to determine top-left corner
+    int min_row = ROW, min_col = COLUMN;
+    for (int loc : locations) {
+        int row = loc / column;
+        int col = loc % column;
+        min_row = std::min(min_row, row);
+        min_col = std::min(min_col, col);
+    }
+    
+    // Check if all 9 positions in the 3x3 square starting from (min_row, min_col) are present
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 3; j++) {
+            int expected_loc = INDEX_OF(min_row + i, min_col + j);
+            if (locations.find(expected_loc) == locations.end()) {
+                return false;
+            }
+        }
+    }
+    
+    return true;
 }
 
 void solver::usage() const {

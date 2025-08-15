@@ -1,15 +1,20 @@
+**/.vscode
 **/*.out
 **/*.dll
 **/*.o
-**/*.so
 **/*.pyd
 **/*.exe
 **/*.gch
 **/*_wrap.cxx
 **/.ipynb_checkpoints
 **/__pycache**
-**/*.test
+
+# generated boards
+**/board_*.txt
+# program output
+**/output.txt
 **/.DS_Store
+**/*.pazusoba
 
 # debug
 **/*.dSYM
@@ -17,12 +22,3 @@
 # xcode
 **/*.xcuserstate
 **/*.xcbkptlist
-
-# cmake genrated folders
-build/
-debug/
-release/
-xcode/
-
-# trace from instrument
-**/*.trace/

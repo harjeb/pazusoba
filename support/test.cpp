@@ -486,6 +486,42 @@ int main() {
     assert(combos[2].loc.size() == 13);
     combos.clear();
 
+    // Test 3x3 square (9-grid pattern)
+    printf("test 3x3 square\n");
+    solver.set_board("RRRBBBGGGRRRBBBGGGRRRBBBGGGRR");
+    copy = solver.board();
+    solver.print_board(copy);
+    solver.erase_combo(copy, combos);
+
+    print_combo(combos);
+    // Should find 4 3x3 squares
+    assert(combos.size() == 4);
+    for (const auto& c : combos) {
+        assert(c.loc.size() == 9);
+        // Test the is_3x3_square function
+        assert(solver.is_3x3_square(c.loc, solver.column()));
+    }
+    combos.clear();
+
+    // Test single 3x3 square
+    solver.set_board("RRRRRRRRRBBGGGGGGGGGGRRRBBBGGG");
+    copy = solver.board();
+    solver.print_board(copy);
+    solver.erase_combo(copy, combos);
+
+    print_combo(combos);
+    // Should find 1 3x3 square and other combos
+    assert(combos.size() >= 1);
+    bool found_square = false;
+    for (const auto& c : combos) {
+        if (c.loc.size() == 9) {
+            found_square = true;
+            assert(solver.is_3x3_square(c.loc, solver.column()));
+        }
+    }
+    assert(found_square);
+    combos.clear();
+
     printf("test erase combo passed\n");
     printf("====================================\n");
 

@@ -149,6 +149,8 @@ public:
     // erase the board, count the combo and calculate the score
     void evaluate(game_board&, state&);
     void erase_combo(game_board&, combo_list&);
+    void check_3x3_squares(game_board&, combo_list&, visit_board&);
+    bool is_3x3_square(const std::unordered_set<int>&, int) const;
     void move_orbs_down(game_board&);
     // A naive way to approach max combo, mostly accurate unless 2 colours
     int calc_max_combo(const orb_list&, const int, const int) const;
