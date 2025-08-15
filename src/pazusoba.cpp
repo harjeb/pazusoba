@@ -141,9 +141,7 @@ void solver::expand(const game_board& board,
                     const state& current,
                     std::vector<state>& states,
                     const int loc) {
-    int count = DIRECTION_COUNT;
-    if (!ALLOW_DIAGONAL)
-        count = 4;
+    int count = ALLOW_DIAGONAL ? DIRECTION_COUNT : 4;
 
     auto prev = current.prev;
     auto curr = current.curr;
@@ -743,6 +741,12 @@ void solver::parse_args(int argc, char* argv[]) {
         set_beam_size(beam_size);
     }
 
+    if (argc > 5) {
+        if (strcmp(argv[5], "--diagonal") == 0 || strcmp(argv[5], "-d") == 0) {
+            set_diagonal(true);
+        }
+    }
+
     print_board(BOARD);
     DEBUG_PRINT("board size: %d\n", BOARD_SIZE);
     DEBUG_PRINT("row x column: %d x %d\n", ROW, COLUMN);
@@ -750,6 +754,7 @@ void solver::parse_args(int argc, char* argv[]) {
     DEBUG_PRINT("max_combo: %d\n", MAX_COMBO);
     DEBUG_PRINT("search_depth: %d\n", SEARCH_DEPTH);
     DEBUG_PRINT("beam_size: %d\n", BEAM_SIZE);
+    DEBUG_PRINT("diagonal_movement: %s\n", ALLOW_DIAGONAL ? "enabled" : "disabled");
     DEBUG_PRINT("====================================\n");
 }
 
@@ -830,6 +835,10 @@ void solver::set_beam_size(int beam_size) {
     if (beam_size < MIN_BEAM_SIZE)
         beam_size = MIN_BEAM_SIZE;
     BEAM_SIZE = beam_size;
+}
+
+void solver::set_diagonal(bool diagonal) {
+    ALLOW_DIAGONAL = diagonal;
 }
 
 void solver::set_profiles(profile* profiles, int count) {
@@ -989,11 +998,12 @@ bool solver::is_3x3_square(const std::unordered_set<int>& locations, int column)
 void solver::usage() const {
     printf(
         "\nusage: pazusoba [board string] [min erase] [max steps] [max "
-        "beam size]\nboard string\t-- "
+        "beam size] [diagonal]\nboard string\t-- "
         "eg. RHLBDGPRHDRJPJRHHJGRDRHLGLPHBB\nmin erase\t-- 3 to 5\nmax "
         "steps\t-- maximum steps before the program stops "
         "searching\nmax beam size\t-- the width of the search space, "
-        "larger number means slower speed but better results\n\nMore "
+        "larger number means slower speed but better results\ndiagonal\t-- "
+        "--diagonal or -d to enable diagonal movement (default: disabled)\n\nMore "
         "at https://github.com/pazusoba/core\n\n");
     exit(0);
 }

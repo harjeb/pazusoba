@@ -20,8 +20,6 @@ namespace pazusoba {
 #define MIN_BEAM_SIZE 100
 #define MAX_BOARD_LENGTH 42
 #define MIN_STATE_SCORE -9999
-// diagonal moves are no yet supported
-#define ALLOW_DIAGONAL 0
 
 #define ROUTE_PER_LIST 21
 #define ROUTE_MASK 0x7000000000000000
@@ -119,6 +117,7 @@ class solver {
     int MIN_ERASE = 3;
     int SEARCH_DEPTH = 100;
     int BEAM_SIZE = 10000;
+    bool ALLOW_DIAGONAL = false;
     int ROW, COLUMN;
     int MAX_COMBO;
     int BOARD_SIZE;
@@ -162,6 +161,7 @@ public:
     void set_min_erase(int);
     void set_search_depth(int);
     void set_beam_size(int);
+    void set_diagonal(bool);
     void set_profiles(profile*, int);
 
     void print_board(const game_board&) const;
