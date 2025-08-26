@@ -190,8 +190,8 @@ public:
             // Aim for zero combo and make sure orbs are not close to each other
             score -= pad::TIER_ONE_SCORE * orbAround;
             score -= pad::TIER_TWO_SCORE * orbNext2;
-            score -= pad::TIER_FIVE_SCORE * moveCount;
-            score -= pad::TIER_TEN_SCORE * combo;
+            score -= pad::TIER_FOUR_SCORE * moveCount;
+            score -= pad::TIER_FIVE_SCORE * combo;
         }
         else
         {
@@ -207,7 +207,7 @@ public:
             else
             {
                 // Encourage cascading
-                score += pad::TIER_FIVE_SCORE * moveCount;
+                score += pad::TIER_FOUR_SCORE * moveCount;
             }
 
             // Always aim for max combo by default
@@ -216,7 +216,7 @@ public:
             score += pad::TIER_FIVE_SCORE * combo;
             //std::cout << combo << "###############\n";
         }
-        //std::cout << score << "~~~~~~~~~\n";
+        //std::cout << combo << "~~~~~~~~~\n";
         return score;
     }
 };
@@ -444,7 +444,86 @@ public:
     }
 };
 
-// Void damage penetration 無効貫通
+
+
+class NineProfile : public ShapeProfile
+{
+public:
+    NineProfile() : ShapeProfile() {}
+    NineProfile(std::vector<Orb> orbs) : ShapeProfile(orbs) {}
+
+    std::string getProfileName() const override
+    {
+        return "9";
+    }
+
+    int getScore(const ComboList &list, const Board &board, int moveCount) const override
+    {
+        int score = 0;
+        for (const auto &c : list)
+        {
+            // must erase 9 orbs
+            if (c.size() >= 9 && isTheOrb(c[0].orb))
+            {
+                std::map<int, int> vertical;
+                std::map<int, int> horizontal;
+                int bigFirst = -1;
+                int bigSecond = -1;
+
+                // Collect info
+                for (const auto &loc : c)
+                {
+                    int x = loc.first;
+                    int y = loc.second;
+                    vertical[x]++;
+                    horizontal[y]++;
+
+
+                    // Track the largest number
+                    if (vertical[x] >= 3)
+                        bigFirst = x;
+                    if (horizontal[y] >= 3)
+                        bigSecond = y;
+                }
+
+                // This is the center point
+                if (bigFirst > -1 && bigSecond > -1)
+                {
+
+                    int count = 0;
+                    for (auto curr = vertical.begin(); curr != vertical.end(); curr++)
+                    {
+                        auto value = curr->second;
+                        if (value == 3)
+                            count++;
+                    }
+                    for (auto curr = horizontal.begin(); curr != horizontal.end(); curr++)
+                    {
+                        auto value = curr->second;
+                        if (value == 3)
+                            count++;
+                    }
+
+                    if (count >= 6)
+                    {
+                        score += count * pad::TIER_NINE_SCORE;
+                    }
+                }
+            }
+        }
+        return score;
+    }
+};
+
+
+
+
+
+
+
+
+
+// Void damage penetration
 class VoidPenProfile : public ShapeProfile
 {
 public:
@@ -460,25 +539,38 @@ public:
     {
         // Try this board
         // DHLHHDHDDDHLDDHDLLLHHLHLLLLDHLHLDLHLLLHLHH
+        //std::cout << "--------------------------\n\n";
+
         int score = 0;
+        int a = 0;
+        int b = 0;
+        int cc = 0;
+        int d = 0;
+        int e = 0;
+
         for (const auto &c : list)
         {
+            //std::cout <<  "0~\n";    
             auto orb = c[0].orb;
             // More points if it is a 3x3 shape
-            if (isTheOrb(orb))
+            if (isTheOrb(orb)  && c.size() == 9)
             {
+                //std::cout  <<  "~~~\n";
                 int size = c.size();
                 int distance = size - 9;
 
                 if (size == minErase)
                 {
-                    score -= pad::TIER_NINE_SCORE;
+                    score -= pad::TIER_ONE_SCORE;
+                    a = score;
                 }
 
-                if (size <= 9)
+                if (size == 9)
                 {
+                    // std::cout << size << "~~~~~~~~~\n";
                     // Must connect more than min erase condition
-                    score += size * pad::TIER_SEVEN_SCORE;
+                    score += size * pad::TIER_ONE_SCORE;
+                    b = score;
 
                     // Do the same like + and L
                     std::map<int, int> vertical;
@@ -496,11 +588,15 @@ public:
                     int v = vertical.size();
                     int h = horizontal.size();
                     if (v < 4 && h < 4)
-                        score += (v + h) * pad::TIER_SEVEN_SCORE;
+                    {
+                        score += (v + h) * pad::TIER_ONE_SCORE;
+                        cc = score;
+                    }
 
                     // All x and y are 3 because it is 3x3
                     if (v == 3 && h == 3)
                     {
+                        std::cout  <<  "~~~\n";
                         int count = 0;
                         for (auto curr = vertical.begin(); curr != vertical.end(); curr++)
                         {
@@ -516,17 +612,32 @@ public:
                         }
 
                         if (count < 6)
-                            score += count * pad::TIER_EIGHT_PLUS_SCORE;
+                            score += count * pad::TIER_EIGHT_SCORE;
                         if (count == 6)
+                            {
                             score += count * pad::TIER_NINE_SCORE;
+                            d = score;
+                            }
+
                     }
                 }
                 else
                 {
-                    score -= distance * pad::TIER_NINE_SCORE;
+                    score -= distance * pad::TIER_ONE_SCORE;
+                    e = score;
                 }
             }
         }
+        if (score > 1000 )
+        {
+            std::cout << a <<  " ~\n";
+            std::cout << b <<  " ~\n";
+            std::cout << cc <<  " ~\n";
+            std::cout << d <<  " ~\n";
+            std::cout << e <<  " ~\n";
+            std::cout << score <<  "~~!!!!!~\n";
+        }
+
         return score;
     }
 };

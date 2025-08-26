@@ -32,7 +32,7 @@ VERSION=v1
 CPP_FILES=core/$(VERSION)/*.cpp
 
 build:
-	$(GCC) $(OPTIMISATION) main_$(VERSION).cpp $(CPP_FILES)
+	$(GCC) $(OPTIMISATION) main_$(VERSION).cpp $(CPP_FILES) -o pazusoba.exe
 
 test:
 	$(GCC) $(OPTIMISATION) main_$(VERSION).cpp $(CPP_FILES) -o test

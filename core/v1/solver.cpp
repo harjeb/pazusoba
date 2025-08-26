@@ -80,17 +80,16 @@ std::vector<Route> PSolver::solve()
     //     new TwoWayProfile({pad::fire, pad::water, pad::wood, pad::light,
     //     pad::dark})};
     //Combo
-    std::vector<Profile *> profiles{
-        new ComboProfile,
-        new TwoWayProfile({pad::water}),
-        new ColourProfile({pad::water,pad::fire})};
+    //std::vector<Profile *> profiles{
+    //    new ComboProfile,
+    //    new ColourProfile({pad::water,pad::fire})};
     // Just combo
     // std::vector<Profile *> profiles{new ComboProfile};
     // Laou
-    // std::vector<Profile *> profiles{
-    //     new ComboProfile,
-    //     // new OneRowProfile({pad::fire}),
-    //     new VoidPenProfile({pad::fire}),
+    std::vector<Profile *> profiles{
+         new ComboProfile,
+	     //new ColourProfile({pad::wood}),
+         new NineProfile({pad::wood})};
     // };
     // 7x6, combo, 4 min erase
     // std::vector<Profile *> profiles{
@@ -138,8 +137,8 @@ std::vector<Route> PSolver::solve()
 
     std::vector<std::thread> boardThreads;
     // This uses all your cores, make sure you don't make the size too large
-    int processor_count = std::thread::hardware_concurrency();
-    // int processor_count = 0;
+    //int processor_count = std::thread::hardware_concurrency();
+    int processor_count = 8;
     if (processor_count == 0)
     {
         processor_count = 1;
@@ -185,8 +184,9 @@ std::vector<Route> PSolver::solve()
 
                     // Save current score for printing out later
                     int currentScore = currentState->score;
-                    //std::cout << currentScore << "~~~~~~~";
+                    
                     int currentStep = currentState->step;
+
 
                     // Save best scores
                     bool shouldAdd = false;
@@ -194,6 +194,7 @@ std::vector<Route> PSolver::solve()
                     if (bestScore[currentScore] == nullptr)
                     {
                         bestScore[currentScore] = currentState;
+
                         shouldAdd = true;
                     }
                     else

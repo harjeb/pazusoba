@@ -73,19 +73,19 @@ namespace pad
     // };
 
     enum score
-        {
-            TIER_ONE_SCORE = 10,
-            TIER_TWO_SCORE = 50,
-            TIER_THREE_SCORE = 10,
-            TIER_FOUR_SCORE = 20,
-            TIER_FIVE_SCORE = 500,   // 1combo  1倍伤害
-            TIER_SIX_SCORE = 3500,    // 4u 水 x7倍
-            TIER_SEVEN_SCORE = 4000,  // 水火触发队长技  x8
-            TIER_EIGHT_SCORE = 3000,
-            TIER_EIGHT_PLUS_SCORE = 3500,
-            TIER_NINE_SCORE = 5000,
-            TIER_TEN_SCORE = 10000,
-        };
+    {
+        TIER_ONE_SCORE = 10,
+        TIER_TWO_SCORE = 50,
+        TIER_THREE_SCORE = 10,
+        TIER_FOUR_SCORE = 20,
+        TIER_FIVE_SCORE = 1000,   // 1combo
+        TIER_SIX_SCORE = 3500,    // 4 water orbs x7
+        TIER_SEVEN_SCORE = 3000,  // water fire leader skill x8
+        TIER_EIGHT_SCORE = 3000,
+        TIER_EIGHT_PLUS_SCORE = 3500,
+        TIER_NINE_SCORE = 10000,
+        TIER_TEN_SCORE = 10000,
+    };
 } // namespace pad
 
 #endif

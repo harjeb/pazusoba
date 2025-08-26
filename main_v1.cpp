@@ -16,11 +16,11 @@ int main(int argc, char *argv[])
 PSolver *handleInput(int argc, char *argv[])
 {
     // std::string filePath = "assets/sample_board_floodfill_bug.txt";
-    std::string filePath = "RHGHDRGLBLHGDBLLHBBBHRLHGHDGLB";
+    std::string filePath = "RHGHDRGGBBGGDBLLHBGGGRLHGHDGLG";
     // std::string filePath = "LHHLHDLDDLHLDDLDHDDDLLHDLHDHHDHHLDLDLHDHDH";
     int minErase = 3;
     int maxStep = 50;
-    int maxSize = 10000;
+    int maxSize = 20000;
 
     // Read from command line
     if (argc > 1)
@@ -32,7 +32,7 @@ PSolver *handleInput(int argc, char *argv[])
         minErase = atoi(argv[2]);
         // min 3, max 5 for now
         if (minErase < 3)
-            minErase = 3;
+            minErase = 2;
         if (minErase > 5)
             minErase = 5;
     }
