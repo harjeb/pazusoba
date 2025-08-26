@@ -12,20 +12,24 @@ Route::Route(PState *state)
     erasedBoard = state->erasedBoard;
     score = state->score;
     step = state->step;
+    
+    // Calculate combo count by simulating the board
+    PBoard tempBoard = state->board;
+    combo = tempBoard.getComboCount();
+    
     convertFromState(state);
 }
 
 void Route::printRoute()
 {
     using namespace std;
-    cout << score << " - " << step << "\n";
-    finalBoard.printBoardForSimulation();
-    cout << "(" << start.first + 1 << ", " << start.second + 1 << ") ";
+    cout << "Combo: " << combo << "\n";
+    cout << "Path: (" << start.first + 1 << ", " << start.second + 1 << ") ";
     for (const auto &d : directions)
     {
-        cout << pad::DIRECTION_NAMES[d] << " ";
+        cout << pad::DIRECTION_NAMES[d];
     }
-    cout << "\n\n";
+    cout << " [" << step << " steps]\n";
 }
 
 void Route::printErasedBoard()

@@ -26,6 +26,7 @@ class Route
     OrbLocation start;
     int score;
     int step;
+    int combo;
 
     // Convert the end state to Directions
     void convertFromState(const PState *s);
@@ -42,6 +43,7 @@ public:
     void printRoute();
     void printErasedBoard();
     inline int getStep() { return step; }
+    inline int getCombo() { return combo; }
     inline void saveToDisk() { state->saveToDisk(); }
 };
 

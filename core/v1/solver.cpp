@@ -106,10 +106,7 @@ std::vector<Route> PSolver::solve()
     auto conf = Configuration::shared();
     ProfileManager::shared().updateProfile(profiles);
 
-    std::cout << "The board is " << conf.getColumn() << " x " << conf.getRow()
-              << ". Max step is " << steps << ". Min erase is "
-              << conf.getMinErase() << ".\n";
-    board.printBoardForSimulation();
+    // Removed verbose output - only show final result
 
     // A queue that only saves top 100, 1000 based on the size
     // PPriorityQueue *toVisit = new PPriorityQueue(size);
@@ -143,7 +140,7 @@ std::vector<Route> PSolver::solve()
     {
         processor_count = 1;
     }
-    std::cout << "Using " << processor_count << " threads.\n";
+    // Using processor_count threads silently
     boardThreads.reserve(processor_count);
     // Cut into equal sizes
     int threadSize = size / processor_count;
@@ -279,9 +276,12 @@ std::vector<Route> PSolver::solve()
         routes.emplace_back(curr);
     }
 
-    // Sort saved routes by steps
+    // Sort saved routes by combo count (highest first), then by steps (lowest first)
     std::sort(routes.begin(), routes.end(), [](Route &a, Route &b) {
-        return a.getStep() < b.getStep();
+        if (a.getCombo() != b.getCombo()) {
+            return a.getCombo() > b.getCombo(); // Higher combo first
+        }
+        return a.getStep() < b.getStep(); // If combo same, fewer steps first
     });
 
     if (routes.size() > 0)
@@ -298,16 +298,10 @@ std::vector<Route> PSolver::solve()
 
     Timer::shared().end(999);
 
-    // Print saved routes, top 5 only
-    i = 0;
-    for (auto &r : routes)
+    // Print only the best route
+    if (!routes.empty())
     {
-        if (i > 5)
-            break;
-        r.printRoute();
-        if (debug)
-            r.printErasedBoard();
-        i++;
+        routes[0].printRoute();
     }
 
     // Free up memories

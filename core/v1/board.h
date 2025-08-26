@@ -131,6 +131,9 @@ public:
     /// Rate current board with profiles
     int rateBoard();
 
+    /// Get combo count from current board
+    int getComboCount();
+
     /// Print out a board nicely formatted
     void printBoard();
 

@@ -231,6 +231,13 @@ int PBoard::rateBoard()
     return score;
 }
 
+int PBoard::getComboCount()
+{
+    int moveCount = 0;
+    auto list = eraseComboAndMoveOrbs(&moveCount);
+    return list.size();
+}
+
 bool PBoard::moveOrbsDown()
 {
     bool changed = false;
