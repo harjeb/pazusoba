@@ -22,3 +22,21 @@
 # xcode
 **/*.xcuserstate
 **/*.xcbkptlist
+
+# Visual Studio
+**/*.vcxproj
+**/*.vcxproj.user
+**/*.sln
+**/.vs/
+**/bin/
+**/obj/
+
+# Executables
+**/*.exe
+**/pazusoba*.exe
+
+# Build artifacts
+**/*.pdb
+**/*.ilk
+**/*.exp
+**/*.lib
