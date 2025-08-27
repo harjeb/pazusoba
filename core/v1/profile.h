@@ -820,11 +820,11 @@ class ForcedPlusProfile : public ShapeProfile
 public:
     ForcedPlusProfile() : ShapeProfile() 
     {
-        std::cout << "[DEBUG] ForcedPlusProfile constructor (no orbs)" << std::endl;
+        // std::cout << "[DEBUG] ForcedPlusProfile constructor (no orbs)" << std::endl;
     }
     ForcedPlusProfile(std::vector<Orb> orbs) : ShapeProfile(orbs) 
     {
-        std::cout << "[DEBUG] ForcedPlusProfile constructor with " << orbs.size() << " orbs" << std::endl;
+        // std::cout << "[DEBUG] ForcedPlusProfile constructor with " << orbs.size() << " orbs" << std::endl;
     }
 
     std::string getProfileName() const override

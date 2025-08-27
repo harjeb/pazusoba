@@ -70,11 +70,11 @@ class PSolver
     std::vector<Profile*> createProfiles(const SolverConfig &config) const;
     
     /// 十字目标导向算法相关方法
-    std::vector<CrossTarget> findPossibleCrosses(const PBoard& board, pad::orbs targetColor) const;
+    std::vector<CrossTarget> findPossibleCrosses(const PBoard& board, pad::orbs targetColor, bool verbose = false) const;
     bool canFormCross(const PBoard& board, int centerX, int centerY, pad::orbs targetColor) const;
     int estimateCrossSteps(const PBoard& board, int centerX, int centerY, pad::orbs targetColor) const;
-    int estimateTotalCombos(const PBoard& board, int centerX, int centerY, pad::orbs targetColor) const;
-    std::vector<OrbMoveplan> planCrossMoves(const PBoard& board, const CrossTarget& target) const;
+    int estimateTotalCombos(const PBoard& board, int centerX, int centerY, pad::orbs targetColor, bool verbose = false) const;
+    std::vector<OrbMoveplan> planCrossMoves(const PBoard& board, const CrossTarget& target, bool verbose = false) const;
     std::vector<Route> solveCrossTargeted(const SolverConfig& config) const;
     
     /// Helper method to get orb from PBoard

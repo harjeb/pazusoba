@@ -144,10 +144,14 @@ std::vector<Profile*> PSolver::createProfiles(const SolverConfig &config) const
     
     // Add plus profile (forced mode takes priority over normal mode)
     if (config.enablePlusConstraint && !config.plusColors.empty()) {
-        std::cout << "[DEBUG] Creating ForcedPlusProfile" << std::endl;
+        if (config.verbose) {
+            std::cout << "[DEBUG] Creating ForcedPlusProfile" << std::endl;
+        }
         profiles.push_back(new ForcedPlusProfile(config.plusColors));
     } else if (config.enablePlusProfile && !config.plusColors.empty()) {
-        std::cout << "[DEBUG] Creating PlusProfile" << std::endl;
+        if (config.verbose) {
+            std::cout << "[DEBUG] Creating PlusProfile" << std::endl;
+        }
         profiles.push_back(new PlusProfile(config.plusColors));
     }
     
@@ -386,13 +390,21 @@ std::vector<Route> PSolver::solve(bool resetProfiles)
 
     // Print saved routes based on display settings
     if (showRoutePath) {
-        for (auto &r : routes) {
-            r.printRoute();
+        if (verbose) {
+            // Verbose mode: show all routes
+            for (auto &r : routes) {
+                r.printRoute();
+            }
+        } else {
+            // Default mode: show only first route
+            if (!routes.empty()) {
+                routes[0].printRoute();
+            }
         }
     }
     
-    // Print board transformation: Initial → Final (default behavior)
-    if (!routes.empty() && showBoardTransform) {
+    // Print board transformation: Initial → Final (only in verbose mode)
+    if (!routes.empty() && showBoardTransform && verbose) {
         printBoardComparison(board.getBoardStringMultiLine(), routes[0].getFinalBoardStringMultiLine());
     }
     
@@ -424,34 +436,51 @@ std::vector<Route> PSolver::solve(const SolverConfig &config)
     auto conf = Configuration::shared();
     ProfileManager::shared().updateProfile(profiles);
 
-    // Set debug based on verbose setting
+    // Set debug based on verbose setting (removed initial board display)
     if (config.verbose) {
         std::cout << "Using " << profiles.size() << " profiles for scoring:" << std::endl;
         for (const auto& profile : profiles) {
             std::cout << "  - " << profile->getProfileName() << std::endl;
         }
+        std::cout << "The board is " << row << " x " << column << ". Max step is " << steps << "." << std::endl;
+        std::cout << "\nInitial Board:" << std::endl;
+        std::cout << board.getBoardStringMultiLine() << std::endl;
     }
 
     // 如果是+FORCE模式，优先尝试十字目标导向算法
     if (config.enablePlusConstraint && !config.plusColors.empty()) {
-        std::cout << "[DEBUG] +FORCE mode detected, trying cross-targeted algorithm first" << std::endl;
+        if (config.verbose) {
+            std::cout << "[DEBUG] +FORCE mode detected, trying cross-targeted algorithm first" << std::endl;
+        }
         
         auto crossRoutes = solveCrossTargeted(config);
         if (!crossRoutes.empty()) {
-            std::cout << "[DEBUG] Cross-targeted algorithm found " << crossRoutes.size() 
-                     << " potential routes" << std::endl;
+            if (config.verbose) {
+                std::cout << "[DEBUG] Cross-targeted algorithm found " << crossRoutes.size() 
+                         << " potential routes" << std::endl;
+            }
             
-            // 如果找到十字路径，直接返回
+            // 如果找到十字路径，根据verbose设置显示
             if (config.showRoutePath) {
-                for (size_t i = 0; i < crossRoutes.size(); i++) {
-                    std::cout << "Cross Route " << (i+1) << ": ";
-                    crossRoutes[i].printRoute();
+                if (config.verbose) {
+                    // Verbose mode: show all cross routes
+                    for (size_t i = 0; i < crossRoutes.size(); i++) {
+                        std::cout << "Cross Route " << (i+1) << ": ";
+                        crossRoutes[i].printRoute();
+                    }
+                } else {
+                    // Default mode: show only first cross route
+                    if (!crossRoutes.empty()) {
+                        crossRoutes[0].printRoute();
+                    }
                 }
             }
             return crossRoutes;
         } else {
-            std::cout << "[DEBUG] Cross-targeted algorithm analysis completed, continuing with traditional search" << std::endl;
-            std::cout << "[DEBUG] Traditional search will now be guided by +FORCE penalties toward cross formation" << std::endl;
+            if (config.verbose) {
+                std::cout << "[DEBUG] Cross-targeted algorithm analysis completed, continuing with traditional search" << std::endl;
+                std::cout << "[DEBUG] Traditional search will now be guided by +FORCE penalties toward cross formation" << std::endl;
+            }
         }
     }
 
@@ -495,10 +524,11 @@ std::vector<Route> PSolver::solve(const SolverConfig &config)
     bool originalShowScore = showScore;
     bool originalVerbose = verbose;
     
-    // Apply config settings
+    // Apply config settings to control display behavior
     showFinalBoard = config.showFinalBoard;
     showRoutePath = config.showRoutePath;
     showScore = config.showScore;
+    showBoardTransform = config.showBoardTransform;
     verbose = config.verbose;
     
     // Call original solve logic without resetting profiles
@@ -515,7 +545,7 @@ std::vector<Route> PSolver::solve(const SolverConfig &config)
 
 // ===== 十字目标导向算法实现 =====
 
-std::vector<CrossTarget> PSolver::findPossibleCrosses(const PBoard& pboard, pad::orbs targetColor) const
+std::vector<CrossTarget> PSolver::findPossibleCrosses(const PBoard& pboard, pad::orbs targetColor, bool verbose) const
 {
     std::vector<CrossTarget> targets;
     
@@ -527,7 +557,7 @@ std::vector<CrossTarget> PSolver::findPossibleCrosses(const PBoard& pboard, pad:
             if (canFormCross(pboard, centerX, centerY, targetColor))
             {
                 int steps = estimateCrossSteps(pboard, centerX, centerY, targetColor);
-                int combos = estimateTotalCombos(pboard, centerX, centerY, targetColor);
+                int combos = estimateTotalCombos(pboard, centerX, centerY, targetColor, verbose);
                 CrossTarget target(centerX, centerY, targetColor, steps, combos);
                 
                 // 记录需要填充的十字位置
@@ -539,10 +569,12 @@ std::vector<CrossTarget> PSolver::findPossibleCrosses(const PBoard& pboard, pad:
                 
                 targets.push_back(target);
                 
-                std::cout << "[DEBUG CrossSolver] Found cross at (" 
-                         << centerX << "," << centerY << ") - Steps: " 
-                         << steps << ", Expected combos: " << combos 
-                         << ", Efficiency: " << target.comboEfficiency << std::endl;
+                if (verbose) {
+                    std::cout << "[DEBUG CrossSolver] Found cross at (" 
+                             << centerX << "," << centerY << ") - Steps: " 
+                             << steps << ", Expected combos: " << combos 
+                             << ", Efficiency: " << target.comboEfficiency << std::endl;
+                }
             }
         }
     }
@@ -616,7 +648,7 @@ int PSolver::estimateCrossSteps(const PBoard& pboard, int centerX, int centerY, 
     return totalSteps;
 }
 
-int PSolver::estimateTotalCombos(const PBoard& pboard, int centerX, int centerY, pad::orbs targetColor) const
+int PSolver::estimateTotalCombos(const PBoard& pboard, int centerX, int centerY, pad::orbs targetColor, bool verbose) const
 {
     // 简化估算：统计各颜色珠子数量来估算combo
     std::map<pad::orbs, int> colorCounts;
@@ -652,13 +684,15 @@ int PSolver::estimateTotalCombos(const PBoard& pboard, int centerX, int centerY,
         }
     }
     
-    std::cout << "[DEBUG CrossSolver] Estimated " << totalCombos 
-             << " total combos for cross at (" << centerX << "," << centerY << ")" << std::endl;
+    if (verbose) {
+        std::cout << "[DEBUG CrossSolver] Estimated " << totalCombos 
+                 << " total combos for cross at (" << centerX << "," << centerY << ")" << std::endl;
+    }
     
     return totalCombos;
 }
 
-std::vector<OrbMoveplan> PSolver::planCrossMoves(const PBoard& pboard, const CrossTarget& target) const
+std::vector<OrbMoveplan> PSolver::planCrossMoves(const PBoard& pboard, const CrossTarget& target, bool verbose) const
 {
     std::vector<OrbMoveplan> moves;
     
@@ -700,9 +734,11 @@ std::vector<OrbMoveplan> PSolver::planCrossMoves(const PBoard& pboard, const Cro
             if (bestX != -1 && bestY != -1)
             {
                 moves.emplace_back(bestX, bestY, pos.first, pos.second, target.targetColor, minDistance);
-                std::cout << "[DEBUG CrossSolver] Plan move: (" << bestX << "," << bestY 
-                         << ") -> (" << pos.first << "," << pos.second << ") distance=" 
-                         << minDistance << std::endl;
+                if (verbose) {
+                    std::cout << "[DEBUG CrossSolver] Plan move: (" << bestX << "," << bestY 
+                             << ") -> (" << pos.first << "," << pos.second << ") distance=" 
+                             << minDistance << std::endl;
+                }
             }
         }
     }
@@ -716,43 +752,55 @@ std::vector<Route> PSolver::solveCrossTargeted(const SolverConfig& config) const
     
     if (!config.enablePlusConstraint || config.plusColors.empty())
     {
-        std::cout << "[DEBUG CrossSolver] Cross-targeted solving not applicable" << std::endl;
+        if (config.verbose) {
+            std::cout << "[DEBUG CrossSolver] Cross-targeted solving not applicable" << std::endl;
+        }
         return routes;
     }
     
     // 对每种目标颜色寻找十字
     for (const auto& targetColor : config.plusColors)
     {
-        std::cout << "[DEBUG CrossSolver] Searching crosses for color " << (int)targetColor << std::endl;
+        if (config.verbose) {
+            std::cout << "[DEBUG CrossSolver] Searching crosses for color " << (int)targetColor << std::endl;
+        }
         
-        auto crossTargets = findPossibleCrosses(board, targetColor);
+        auto crossTargets = findPossibleCrosses(board, targetColor, config.verbose);
         
         if (crossTargets.empty())
         {
-            std::cout << "[DEBUG CrossSolver] No possible crosses found for color " << (int)targetColor << std::endl;
+            if (config.verbose) {
+                std::cout << "[DEBUG CrossSolver] No possible crosses found for color " << (int)targetColor << std::endl;
+            }
             continue;
         }
         
         // 选择最优的十字（已按combo数量和效率排序）
         const auto& bestTarget = crossTargets[0];
-        std::cout << "[DEBUG CrossSolver] Selected BEST target at (" << bestTarget.centerX 
-                 << "," << bestTarget.centerY << ") - Steps: " << bestTarget.estimatedSteps 
-                 << ", Expected combos: " << bestTarget.expectedCombos 
-                 << ", Efficiency: " << bestTarget.comboEfficiency << std::endl;
+        if (config.verbose) {
+            std::cout << "[DEBUG CrossSolver] Selected BEST target at (" << bestTarget.centerX 
+                     << "," << bestTarget.centerY << ") - Steps: " << bestTarget.estimatedSteps 
+                     << ", Expected combos: " << bestTarget.expectedCombos 
+                     << ", Efficiency: " << bestTarget.comboEfficiency << std::endl;
+        }
         
-        auto movePlan = planCrossMoves(board, bestTarget);
+        auto movePlan = planCrossMoves(board, bestTarget, config.verbose);
         
         if (movePlan.empty())
         {
-            std::cout << "[DEBUG CrossSolver] No moves needed for target - cross already formed!" << std::endl;
+            if (config.verbose) {
+                std::cout << "[DEBUG CrossSolver] No moves needed for target - cross already formed!" << std::endl;
+            }
             // 创建一个空的路径表示十字已经存在
             continue;
         }
         
         // 暂时返回空路径列表，表示找到了可行的十字目标
         // 实际的路径计算需要更复杂的实现
-        std::cout << "[DEBUG CrossSolver] Cross target found but route generation not fully implemented" << std::endl;
-        std::cout << "[DEBUG CrossSolver] Planned " << movePlan.size() << " moves to form cross" << std::endl;
+        if (config.verbose) {
+            std::cout << "[DEBUG CrossSolver] Cross target found but route generation not fully implemented" << std::endl;
+            std::cout << "[DEBUG CrossSolver] Planned " << movePlan.size() << " moves to form cross" << std::endl;
+        }
         
         // 由于Route类需要PState构造，我们暂时返回空列表
         // 让算法回退到传统搜索
