@@ -21,6 +21,7 @@
 #include <sstream>
 #include <thread>
 #include <algorithm>
+#include <unordered_set>
 
 // Helper function to display two multi-line strings side by side
 void printBoardComparison(const std::string& initialBoard, const std::string& finalBoard) {
@@ -447,10 +448,47 @@ std::vector<Route> PSolver::solve(const SolverConfig &config)
         std::cout << board.getBoardStringMultiLine() << std::endl;
     }
 
-    // 如果是9FORCE模式，优先尝试9宫格目标导向算法
+    // 如果是9FORCE模式，直接使用分布式聚集算法
     if (config.enableNineConstraint && !config.nineColors.empty()) {
         if (config.verbose) {
-            std::cout << "[DEBUG] 9FORCE mode detected, trying 9-grid targeted algorithm first" << std::endl;
+            std::cout << "[DEBUG] 9FORCE mode detected, using distributed clustering algorithm" << std::endl;
+        }
+        
+        auto distributedRoutes = solveNineGridDistributed(config);
+        if (!distributedRoutes.empty()) {
+            if (config.verbose) {
+                std::cout << "[DEBUG] Distributed clustering found " << distributedRoutes.size() 
+                         << " routes for 9-grid formation!" << std::endl;
+            }
+            
+            // 如果找到分布式路径，根据verbose设置显示
+            if (config.showRoutePath) {
+                if (config.verbose) {
+                    // Verbose mode: show all distributed routes
+                    for (size_t i = 0; i < distributedRoutes.size(); i++) {
+                        std::cout << "Distributed 9-Grid Route " << (i+1) << ": ";
+                        distributedRoutes[i].printRoute();
+                    }
+                } else {
+                    // Default mode: show only first distributed route
+                    if (!distributedRoutes.empty()) {
+                        distributedRoutes[0].printRoute();
+                    }
+                }
+            }
+            return distributedRoutes;
+        } else {
+            if (config.verbose) {
+                std::cout << "[DEBUG] Distributed clustering completed but no valid 9-grids found" << std::endl;
+                std::cout << "[DEBUG] Falling back to targeted algorithm as final approach" << std::endl;
+            }
+        }
+    }
+    
+    // 如果分布式算法也失败，回退到原有的9宫格目标导向算法作为第三层
+    if (config.enableNineConstraint && !config.nineColors.empty()) {
+        if (config.verbose) {
+            std::cout << "[DEBUG] Trying 9-grid targeted algorithm as fallback" << std::endl;
         }
         
         auto nineRoutes = solveNineGridTargeted(config);
@@ -478,10 +516,19 @@ std::vector<Route> PSolver::solve(const SolverConfig &config)
             return nineRoutes;
         } else {
             if (config.verbose) {
-                std::cout << "[DEBUG] 9-grid analysis completed - found optimal targets but using traditional search" << std::endl;
-                std::cout << "[DEBUG] Traditional search will be guided by 9FORCE constraints toward 9-grid formation" << std::endl;
-                std::cout << "[DEBUG] This approach combines 9-grid targeting with flexible pathfinding for better results" << std::endl;
+                std::cout << "[DEBUG] 9-grid targeted search completed but no valid 9-grids found" << std::endl;
+                std::cout << "[DEBUG] 9FORCE mode requires strict 9-grid formation - no traditional search fallback" << std::endl;
             }
+            
+            std::cout << "\n[RESULT] 9FORCE Mode: Distributed clustering failed to form 9-grid." << std::endl;
+            std::cout << "[ANALYSIS] Distributed algorithm analysis completed:" << std::endl;
+            std::cout << "  - Distributed clustering: No clustering strategy succeeded" << std::endl;
+            std::cout << "  - Targeted 9-grid search: No valid formation possible" << std::endl;
+            std::cout << "[SUGGESTION] Try with enhanced parameters:" << std::endl;
+            std::cout << "  pazusoba_v1.exe " << config.filePath << " 3 " << (config.maxStep + 30) << " " << (config.maxSize * 5) << " --nine-force=G --verbose" << std::endl;
+            
+            // 9FORCE模式严格要求，直接返回空结果，不进行传统搜索
+            return std::vector<Route>();
         }
     }
 
@@ -916,8 +963,24 @@ bool PSolver::canFormNineGrid(const PBoard& pboard, int centerX, int centerY, pa
         }
     });
     
-    // 判断是否可能形成9宫格：需要至少9个目标颜色珠子
-    return availableOrbs >= 9;
+    // 更现实的检查：至少需要9个目标颜色珠子，并且要考虑分布
+    if (availableOrbs < 9) return false;
+    
+    // 检查目标3x3区域周围的目标颜色珠子密度
+    int nearbyOrbs = 0;
+    int maxDistance = 3; // 最多允许3步距离内的珠子参与形成9宫格
+    
+    pboard.traverse([&](int i, int j, pad::orbs orb) {
+        if (orb == targetColor) {
+            int distance = abs(i - centerX) + abs(j - centerY);
+            if (distance <= maxDistance) {
+                nearbyOrbs++;
+            }
+        }
+    });
+    
+    // 如果周围3步距离内有至少7个目标珠子，认为可能形成9宫格
+    return nearbyOrbs >= 7;
 }
 
 int PSolver::estimateNineGridSteps(const PBoard& pboard, int centerX, int centerY, pad::orbs targetColor) const
@@ -1076,9 +1139,27 @@ std::vector<Route> PSolver::solveNineGridTargeted(const SolverConfig& config) co
         if (nineTargets.empty())
         {
             if (config.verbose) {
-                std::cout << "[DEBUG NineGridSolver] No possible 9-grids found for color " << (int)targetColor << std::endl;
+                std::cout << "[DEBUG NineGridSolver] No feasible 9-grids found for color " << (int)targetColor << std::endl;
             }
-            continue;
+            
+            // 统计总的目标颜色珠子数
+            int totalOrbs = 0;
+            board.traverse([&](int i, int j, pad::orbs orb) {
+                if (orb == targetColor) totalOrbs++;
+            });
+            
+            if (totalOrbs >= 9) {
+                std::cout << "\n[WARNING] 9FORCE Mode: Board has " << totalOrbs << " target orbs but they are scattered." << std::endl;
+                std::cout << "[SUGGESTION] To form 9-grid, try increasing parameters:" << std::endl;
+                std::cout << "  - Increase max steps: current=" << steps << ", try " << (steps + 10) << " or more" << std::endl;
+                std::cout << "  - Increase search size: current=" << size << ", try " << (size * 2) << " or more" << std::endl;
+                std::cout << "  - Example: pazusoba_v1.exe [board] 3 " << (steps + 10) << " " << (size * 2) << " --nine-force=G" << std::endl;
+            } else {
+                std::cout << "\n[ERROR] 9FORCE Mode: Board has only " << totalOrbs << " target orbs (need >=9 for 9-grid)" << std::endl;
+                std::cout << "[SUGGESTION] This board cannot form a 9-grid. Try a different board or use regular mode." << std::endl;
+            }
+            
+            return routes; // 返回空，9FORCE模式严格要求9宫格
         }
         
         // 选择最优的9宫格（已按combo数量和效率排序）
@@ -1135,60 +1216,14 @@ std::vector<Route> PSolver::generateNineGridRoutes(const NineTarget& target, con
 {
     std::vector<Route> routes;
     
-    // 实用方法：不使用严格约束，而是运行更大范围的搜索并过滤结果
     if (config.verbose) {
-        std::cout << "[DEBUG NineGridSolver] Running extended search targeting 9-grid at ("
-                 << target.centerX << "," << target.centerY << ")" << std::endl;
+        std::cout << "[DEBUG NineGridSolver] 9FORCE mode: No extended search - returning empty routes" << std::endl;
     }
     
-    // 不设置9宫格约束，让搜索更自由，但增加搜索步数来形成9宫格
-    // PState::setNineGridConstraint(true, OrbLocation(target.centerX, target.centerY));
+    // 在9FORCE模式下，如果简单移动计划不能直接形成9宫格，就直接返回失败
+    // 不进行扩展搜索，因为那实际上就是传统搜索的一种形式
     
-    // 运行一个扩展的传统搜索（更多步数以确保能形成9宫格）
-    int originalSteps = steps;
-    int originalSize = size;
-    
-    // 临时设置更合理的搜索参数
-    const_cast<PSolver*>(this)->steps = std::min(15, steps + 5); // 增加步数限制
-    const_cast<PSolver*>(this)->size = std::min(1000, size);     // 适当增加搜索空间
-    
-    try {
-        // 运行传统搜索
-        auto extendedRoutes = const_cast<PSolver*>(this)->solve(false); // 不重置profiles
-        
-        if (!extendedRoutes.empty()) {
-            // 验证并过滤出实际形成9宫格的路径
-            for (auto& route : extendedRoutes) {
-                if (validateNineGridFormation(route, target.targetColor, config.verbose)) {
-                    routes.push_back(route);
-                    if (config.verbose) {
-                        std::cout << "[DEBUG NineGridSolver] Validated 9-grid route with " 
-                                 << route.getCombo() << " combos, " << route.getStep() << " steps" << std::endl;
-                    }
-                    if (routes.size() >= 3) break; // 限制返回的路径数量
-                }
-            }
-            
-            if (routes.empty() && config.verbose) {
-                std::cout << "[DEBUG NineGridSolver] No valid 9-grid formation found in " 
-                         << extendedRoutes.size() << " candidate routes" << std::endl;
-            } else if (config.verbose) {
-                std::cout << "[DEBUG NineGridSolver] Extended search found " << routes.size() 
-                         << " valid 9-grid routes from " << extendedRoutes.size() << " candidates" << std::endl;
-            }
-        }
-    } catch (...) {
-        if (config.verbose) {
-            std::cout << "[DEBUG NineGridSolver] Exception during extended search" << std::endl;
-        }
-    }
-    
-    // 恢复原始参数
-    const_cast<PSolver*>(this)->steps = originalSteps;
-    const_cast<PSolver*>(this)->size = originalSize;
-    // PState::setNineGridConstraint(false, OrbLocation(0, 0));
-    
-    return routes;
+    return routes; // 直接返回空，不做任何搜索
 }
 
 PState* PSolver::buildOptimalNineGridState(const NineTarget& target, const std::vector<OrbMoveplan>& movePlan) const
@@ -1289,6 +1324,681 @@ bool PSolver::validateNineGridFormation(const Route& route, pad::orbs targetColo
     }
     
     return false;
+}
+
+// ===== 分布式聚集算法实现 =====
+
+std::vector<Route> PSolver::solveNineGridDistributed(const SolverConfig& config) const
+{
+    if (config.verbose) {
+        std::cout << "[DEBUG Distributed] ========== DISTRIBUTED CLUSTERING ENTRY POINT ==========" << std::endl;
+    }
+    
+    std::vector<Route> routes;
+    
+    if (!config.enableNineConstraint || config.nineColors.empty()) {
+        if (config.verbose) {
+            std::cout << "[DEBUG Distributed] Distributed nine-grid solving not applicable - constraint disabled or no colors" << std::endl;
+        }
+        return routes;
+    }
+    
+    if (config.verbose) {
+        std::cout << "[DEBUG Distributed] Starting distributed clustering algorithm for 9-grid formation" << std::endl;
+        std::cout << "[DEBUG Distributed] Target colors: " << config.nineColors.size() << " colors specified" << std::endl;
+    }
+    
+    // 对每种目标颜色尝试分布式算法
+    for (const auto& targetColor : config.nineColors) {
+        if (config.verbose) {
+            std::cout << "[DEBUG Distributed] Distributed approach for color " << (int)targetColor << std::endl;
+        }
+        
+        // 寻找最优的9宫格目标
+        auto nineTargets = findPossibleNineGrids(board, targetColor, config.verbose);
+        
+        if (nineTargets.empty()) {
+            if (config.verbose) {
+                std::cout << "[DEBUG Distributed] No feasible 9-grid targets for distributed approach" << std::endl;
+            }
+            continue;
+        }
+        
+        // 选择最优目标（已按效率排序）
+        const auto& bestTarget = nineTargets[0];
+        if (config.verbose) {
+            std::cout << "[DEBUG Distributed] Selected target at (" << bestTarget.centerX 
+                     << "," << bestTarget.centerY << ") for distributed approach" << std::endl;
+        }
+        
+        // 第一阶段：珠子聚集
+        auto gatherPath = phaseOneGatherOrbs(bestTarget, config.verbose);
+        
+        if (!gatherPath.empty()) {
+            if (config.verbose) {
+                std::cout << "[DEBUG Distributed] Phase 1 completed: gathered orbs in " 
+                         << gatherPath.size() << " steps" << std::endl;
+            }
+            
+            // 模拟第一阶段后的棋盘状态
+            PBoard clusteredBoard = board;
+            for (size_t i = 1; i < gatherPath.size(); i++) {
+                OrbLocation from(gatherPath[i-1].first, gatherPath[i-1].second);
+                OrbLocation to(gatherPath[i].first, gatherPath[i].second);
+                clusteredBoard.swapLocation(from, to);
+            }
+            
+            // 第二阶段：精确排列，从阶段1终点开始
+            std::pair<int, int> phase1EndPos = gatherPath.empty() ? std::make_pair(bestTarget.centerX, bestTarget.centerY) : gatherPath.back();
+            auto arrangePath = phaseTwoArrangeGrid(clusteredBoard, bestTarget, phase1EndPos, config.verbose);
+            
+            if (!arrangePath.empty()) {
+                // 智能合并两个阶段的路径，避免重复连接点
+                std::vector<std::pair<int, int>> completePath = gatherPath;
+                
+                if (!arrangePath.empty()) {
+                    // 检查gatherPath的终点是否与arrangePath的起点相同
+                    bool needsConnection = true;
+                    if (!gatherPath.empty() && !arrangePath.empty()) {
+                        auto gatherEnd = gatherPath.back();
+                        auto arrangeStart = arrangePath[0];
+                        if (gatherEnd.first == arrangeStart.first && gatherEnd.second == arrangeStart.second) {
+                            // 终点和起点相同，跳过arrangePath的第一个点
+                            completePath.insert(completePath.end(), arrangePath.begin() + 1, arrangePath.end());
+                            needsConnection = false;
+                        }
+                    }
+                    
+                    if (needsConnection) {
+                        // 没有重复，直接连接所有arrangePath的点
+                        completePath.insert(completePath.end(), arrangePath.begin(), arrangePath.end());
+                    }
+                }
+                
+                if (config.verbose) {
+                    std::cout << "[DEBUG Distributed] Phase 2 completed: arranged grid in " 
+                             << arrangePath.size() << " additional steps" << std::endl;
+                    std::cout << "[DEBUG Distributed] Total distributed path: " 
+                             << completePath.size() << " steps" << std::endl;
+                }
+                
+                // 将路径转换为Route对象
+                auto distributedRoute = convertDistributedPathToRoute(completePath, bestTarget, config);
+                if (distributedRoute.has_value()) {
+                    routes.push_back(distributedRoute.value());
+                    
+                    if (config.verbose) {
+                        std::cout << "[DEBUG Distributed] Complete distributed path: ";
+                        for (size_t i = 0; i < completePath.size(); i++) {
+                            std::cout << "(" << completePath[i].first << "," << completePath[i].second << ")";
+                            if (i < completePath.size() - 1) std::cout << " -> ";
+                        }
+                        std::cout << std::endl;
+                        
+                        std::cout << "[DEBUG Distributed] Final board from route:" << std::endl;
+                        std::cout << routes.back().getFinalBoardStringMultiLine() << std::endl;
+                    }
+                    
+                    // 验证路径确实能形成9宫格
+                    if (validateNineGridFormation(routes.back(), targetColor, config.verbose)) {
+                        if (config.verbose) {
+                            std::cout << "[DEBUG Distributed] Distributed path validated - forms valid 9-grid!" << std::endl;
+                        }
+                        return routes; // 成功找到解决方案
+                    } else {
+                        if (config.verbose) {
+                            std::cout << "[DEBUG Distributed] Distributed path validation failed" << std::endl;
+                        }
+                        routes.pop_back();
+                    }
+                }
+            } else {
+                if (config.verbose) {
+                    std::cout << "[DEBUG Distributed] Phase 2 failed: could not arrange clustered orbs into grid" << std::endl;
+                }
+            }
+        } else {
+            if (config.verbose) {
+                std::cout << "[DEBUG Distributed] Phase 1 failed: could not gather orbs effectively" << std::endl;
+            }
+        }
+    }
+    
+    return routes;
+}
+
+std::vector<std::pair<int, int>> PSolver::phaseOneGatherOrbs(const NineTarget& target, bool verbose) const
+{
+    if (verbose) {
+        std::cout << "[DEBUG Distributed Phase1] Gathering " << (int)target.targetColor 
+                 << " orbs near target region (" << target.centerX << "," << target.centerY << ")" << std::endl;
+    }
+    
+    std::vector<std::pair<int, int>> gatherPath;
+    PBoard currentBoard = board;
+    
+    // 定义聚集区域（5x5区域，以目标9宫格为中心）
+    int clusterMinX = std::max(0, target.centerX - 2);
+    int clusterMaxX = std::min(row - 1, target.centerX + 2);
+    int clusterMinY = std::max(0, target.centerY - 2);
+    int clusterMaxY = std::min(column - 1, target.centerY + 2);
+    
+    // 找到所有目标颜色珠子
+    std::vector<std::pair<int, int>> targetOrbs;
+    currentBoard.traverse([&](int i, int j, pad::orbs orb) {
+        if (orb == target.targetColor) {
+            targetOrbs.push_back({i, j});
+        }
+    });
+    
+    if (verbose) {
+        std::cout << "[DEBUG Distributed Phase1] Found " << targetOrbs.size() 
+                 << " target orbs, cluster area: (" << clusterMinX << "," << clusterMinY 
+                 << ") to (" << clusterMaxX << "," << clusterMaxY << ")" << std::endl;
+    }
+    
+    // 计算有多少珠子已经在聚集区域内
+    int orbsInCluster = 0;
+    for (const auto& orbPos : targetOrbs) {
+        if (orbPos.first >= clusterMinX && orbPos.first <= clusterMaxX &&
+            orbPos.second >= clusterMinY && orbPos.second <= clusterMaxY) {
+            orbsInCluster++;
+        }
+    }
+    
+    if (verbose) {
+        std::cout << "[DEBUG Distributed Phase1] " << orbsInCluster 
+                 << " orbs already in cluster area, need to move " << (9 - orbsInCluster) << " more" << std::endl;
+    }
+    
+    // 如果已经有足够珠子在聚集区域，直接返回简单路径
+    if (orbsInCluster >= 9) {
+        if (verbose) {
+            std::cout << "[DEBUG Distributed Phase1] Sufficient orbs already clustered, minimal gathering needed" << std::endl;
+        }
+        // 返回一个简单的单步路径作为Phase1的象征性完成
+        if (!targetOrbs.empty()) {
+            gatherPath.push_back(targetOrbs[0]);
+            gatherPath.push_back({targetOrbs[0].first, targetOrbs[0].second}); // 原地不动
+        }
+        return gatherPath;
+    }
+    
+    // 按距离聚集区域的远近排序（远的先移动）
+    std::sort(targetOrbs.begin(), targetOrbs.end(), [&](const std::pair<int, int>& a, const std::pair<int, int>& b) {
+        int distA = abs(a.first - target.centerX) + abs(a.second - target.centerY);
+        int distB = abs(b.first - target.centerX) + abs(b.second - target.centerY);
+        return distA > distB; // 距离远的优先处理
+    });
+    
+    int orbsNeeded = 9 - orbsInCluster;
+    int orbsMoved = 0;
+    
+    for (const auto& orbPos : targetOrbs) {
+        if (orbsMoved >= orbsNeeded) break;
+        
+        // 检查是否已经在聚集区域内
+        if (orbPos.first >= clusterMinX && orbPos.first <= clusterMaxX &&
+            orbPos.second >= clusterMinY && orbPos.second <= clusterMaxY) {
+            continue; // 已经在目标区域，跳过
+        }
+        
+        // 简单移动策略：朝目标区域中心移动
+        auto movePath = moveOrbToCluster(currentBoard, orbPos.first, orbPos.second, target);
+        
+        if (!movePath.empty() && movePath.size() > 1) { // 至少要有移动
+            // 添加到总路径
+            if (gatherPath.empty()) {
+                gatherPath = movePath;
+            } else {
+                // 连接路径，从上一个路径的终点开始
+                auto lastPos = gatherPath.back();
+                gatherPath.insert(gatherPath.end(), movePath.begin() + 1, movePath.end());
+            }
+            
+            // 模拟移动，更新棋盘状态
+            for (size_t j = 1; j < movePath.size(); j++) {
+                OrbLocation from(movePath[j-1].first, movePath[j-1].second);
+                OrbLocation to(movePath[j].first, movePath[j].second);
+                currentBoard.swapLocation(from, to);
+            }
+            
+            orbsMoved++;
+            
+            if (verbose) {
+                std::cout << "[DEBUG Distributed Phase1] Moved orb #" << orbsMoved 
+                         << " from (" << orbPos.first << "," << orbPos.second 
+                         << ") in " << (movePath.size()-1) << " steps" << std::endl;
+            }
+        }
+        
+        // 限制路径长度，避免过度复杂
+        if (gatherPath.size() > 25) {
+            if (verbose) {
+                std::cout << "[DEBUG Distributed Phase1] Path length limit reached, stopping at " 
+                         << gatherPath.size() << " steps" << std::endl;
+            }
+            break;
+        }
+    }
+    
+    if (verbose) {
+        std::cout << "[DEBUG Distributed Phase1] Gathering completed: " << orbsMoved 
+                 << " orbs moved, total path length: " << gatherPath.size() << std::endl;
+    }
+    
+    return gatherPath;
+}
+
+std::vector<std::pair<int, int>> PSolver::moveOrbToCluster(const PBoard& board, int fromX, int fromY, const NineTarget& target) const
+{
+    std::vector<std::pair<int, int>> path;
+    path.push_back({fromX, fromY});
+    
+    int currentX = fromX, currentY = fromY;
+    int maxMoves = 5; // 限制单个珠子的最大移动步数
+    
+    for (int move = 0; move < maxMoves; move++) {
+        // 计算朝目标中心的方向
+        int deltaX = 0, deltaY = 0;
+        
+        if (currentX < target.centerX) deltaX = 1;
+        else if (currentX > target.centerX) deltaX = -1;
+        
+        if (currentY < target.centerY) deltaY = 1;
+        else if (currentY > target.centerY) deltaY = -1;
+        
+        // 如果已经很接近目标区域，停止移动
+        if (abs(currentX - target.centerX) <= 2 && abs(currentY - target.centerY) <= 2) {
+            break;
+        }
+        
+        // 尝试移动
+        int newX = currentX + deltaX;
+        int newY = currentY + deltaY;
+        
+        // 检查边界
+        if (newX >= 0 && newX < row && newY >= 0 && newY < column) {
+            path.push_back({newX, newY});
+            currentX = newX;
+            currentY = newY;
+        } else {
+            break; // 无法继续移动
+        }
+    }
+    
+    return path;
+}
+
+// 创建从源位置到目标位置的精确移动序列
+std::vector<std::pair<int, int>> PSolver::createPreciseMoveSequence(const std::pair<int, int>& from, const std::pair<int, int>& to, const PBoard& board) const
+{
+    std::vector<std::pair<int, int>> sequence;
+    sequence.push_back(from);
+    
+    int currentX = from.first, currentY = from.second;
+    int targetX = to.first, targetY = to.second;
+    int maxMoves = 10; // 防止无限循环
+    
+    // 使用简单的贪心策略：每次朝目标方向移动一步
+    for (int move = 0; move < maxMoves && (currentX != targetX || currentY != targetY); move++) {
+        int deltaX = 0, deltaY = 0;
+        
+        // 计算朝目标的方向
+        if (currentX < targetX) deltaX = 1;
+        else if (currentX > targetX) deltaX = -1;
+        
+        if (currentY < targetY) deltaY = 1;
+        else if (currentY > targetY) deltaY = -1;
+        
+        // 尝试移动
+        int newX = currentX + deltaX;
+        int newY = currentY + deltaY;
+        
+        // 检查边界
+        if (newX >= 0 && newX < row && newY >= 0 && newY < column) {
+            sequence.push_back({newX, newY});
+            currentX = newX;
+            currentY = newY;
+        } else {
+            // 如果直线路径不可行，尝试先水平或垂直移动
+            if (deltaX != 0 && currentY + deltaY >= 0 && currentY + deltaY < column) {
+                sequence.push_back({currentX, currentY + deltaY});
+                currentY = currentY + deltaY;
+            } else if (deltaY != 0 && currentX + deltaX >= 0 && currentX + deltaX < row) {
+                sequence.push_back({currentX + deltaX, currentY});
+                currentX = currentX + deltaX;
+            } else {
+                break; // 无法继续移动
+            }
+        }
+    }
+    
+    return sequence;
+}
+
+std::vector<std::pair<int, int>> PSolver::phaseTwoArrangeGrid(const PBoard& clusteredBoard, const NineTarget& target, const std::pair<int, int>& phase1EndPos, bool verbose) const
+{
+    if (verbose) {
+        std::cout << "[DEBUG Distributed Phase2] 8+1 Strategy: Arranging 8 orbs, leaving 1 space for moving orb" << std::endl;
+        std::cout << "[DEBUG Distributed Phase2] Target 3x3 grid center at (" 
+                 << target.centerX << "," << target.centerY << ")" << std::endl;
+    }
+    
+    std::vector<std::pair<int, int>> arrangePath;
+    
+    // 生成目标9宫格的所有9个位置
+    std::vector<std::pair<int, int>> nineGridPositions;
+    for (int dx = -1; dx <= 1; dx++) {
+        for (int dy = -1; dy <= 1; dy++) {
+            int x = target.centerX + dx;
+            int y = target.centerY + dy;
+            if (x >= 0 && x < row && y >= 0 && y < column) {
+                nineGridPositions.push_back({x, y});
+            }
+        }
+    }
+    
+    if (nineGridPositions.size() != 9) {
+        if (verbose) {
+            std::cout << "[DEBUG Distributed Phase2] Invalid grid - not all 9 positions are within bounds" << std::endl;
+        }
+        return {};
+    }
+    
+    // 找到最适合作为"移动珠子"的目标颜色珠子（在9宫格内或最近）
+    int bestMovingOrbX = -1, bestMovingOrbY = -1;
+    int minDistanceToGrid = 999;
+    
+    // 扫描聚集区域寻找目标颜色珠子
+    int clusterMinX = std::max(0, target.centerX - 2);
+    int clusterMaxX = std::min(row - 1, target.centerX + 2);
+    int clusterMinY = std::max(0, target.centerY - 2);
+    int clusterMaxY = std::min(column - 1, target.centerY + 2);
+    
+    for (int i = clusterMinX; i <= clusterMaxX; i++) {
+        for (int j = clusterMinY; j <= clusterMaxY; j++) {
+            if (getOrbAt(clusteredBoard, i, j) == target.targetColor) {
+                int distanceToCenter = abs(i - target.centerX) + abs(j - target.centerY);
+                if (distanceToCenter < minDistanceToGrid) {
+                    minDistanceToGrid = distanceToCenter;
+                    bestMovingOrbX = i;
+                    bestMovingOrbY = j;
+                }
+            }
+        }
+    }
+    
+    if (bestMovingOrbX == -1) {
+        if (verbose) {
+            std::cout << "[DEBUG Distributed Phase2] No suitable moving orb found" << std::endl;
+        }
+        return {};
+    }
+    
+    if (verbose) {
+        std::cout << "[DEBUG Distributed Phase2] Selected moving orb at (" 
+                 << bestMovingOrbX << "," << bestMovingOrbY << ") distance=" << minDistanceToGrid << std::endl;
+    }
+    
+    // 8+1策略：为其他8个位置找到目标珠子，留下1个位置给移动珠子
+    std::vector<std::pair<int, int>> targetPositions;
+    std::pair<int, int> movingOrbFinalPos;
+    
+    // 分配位置：选择距离移动珠子最远的位置作为其最终位置
+    int maxDistance = -1;
+    for (const auto& pos : nineGridPositions) {
+        int distance = abs(pos.first - bestMovingOrbX) + abs(pos.second - bestMovingOrbY);
+        if (distance > maxDistance) {
+            maxDistance = distance;
+            movingOrbFinalPos = pos;
+        }
+    }
+    
+    // 其他8个位置作为需要填充的位置
+    for (const auto& pos : nineGridPositions) {
+        if (pos.first != movingOrbFinalPos.first || pos.second != movingOrbFinalPos.second) {
+            // 检查这个位置是否已经有目标颜色珠子
+            if (getOrbAt(clusteredBoard, pos.first, pos.second) != target.targetColor) {
+                targetPositions.push_back(pos);
+            }
+        }
+    }
+    
+    if (verbose) {
+        std::cout << "[DEBUG Distributed Phase2] Need to fill " << targetPositions.size() 
+                 << " positions, moving orb final position: (" 
+                 << movingOrbFinalPos.first << "," << movingOrbFinalPos.second << ")" << std::endl;
+    }
+    
+    // 找到可用的目标颜色珠子来填充这些位置
+    std::vector<std::pair<int, int>> availableOrbs;
+    for (int i = clusterMinX; i <= clusterMaxX; i++) {
+        for (int j = clusterMinY; j <= clusterMaxY; j++) {
+            if (getOrbAt(clusteredBoard, i, j) == target.targetColor) {
+                // 跳过我们选定的移动珠子
+                if (i == bestMovingOrbX && j == bestMovingOrbY) continue;
+                
+                // 跳过已经在正确位置的珠子
+                bool alreadyInCorrectPosition = false;
+                for (const auto& gridPos : nineGridPositions) {
+                    if (i == gridPos.first && j == gridPos.second) {
+                        if (getOrbAt(clusteredBoard, i, j) == target.targetColor) {
+                            alreadyInCorrectPosition = true;
+                            break;
+                        }
+                    }
+                }
+                
+                if (!alreadyInCorrectPosition) {
+                    availableOrbs.push_back({i, j});
+                }
+            }
+        }
+    }
+    
+    if (verbose) {
+        std::cout << "[DEBUG Distributed Phase2] Found " << availableOrbs.size() 
+                 << " available orbs for filling positions" << std::endl;
+    }
+    
+    // 8+1策略：创建连续的移动路径，从阶段1的终点开始
+    if (targetPositions.size() <= availableOrbs.size()) {
+        // 从阶段1的终点开始连续移动
+        std::pair<int, int> currentPos = phase1EndPos;
+        
+        if (arrangePath.empty()) {
+            arrangePath.push_back(currentPos);
+        }
+        
+        if (verbose) {
+            std::cout << "[DEBUG Distributed Phase2] 8+1 Strategy: Starting from phase1 end position (" 
+                     << currentPos.first << "," << currentPos.second << ")" << std::endl;
+            std::cout << "[DEBUG Distributed Phase2] Moving orb selected at (" 
+                     << bestMovingOrbX << "," << bestMovingOrbY << ") will end at (" 
+                     << movingOrbFinalPos.first << "," << movingOrbFinalPos.second << ")" << std::endl;
+        }
+        
+        // 按优先级处理需要填充的位置
+        for (size_t i = 0; i < targetPositions.size() && i < availableOrbs.size(); i++) {
+            auto targetPos = targetPositions[i];
+            auto orbPos = availableOrbs[i];
+            
+            if (verbose) {
+                std::cout << "[DEBUG Distributed Phase2] 8+1 Step " << (i+1) << ": bring orb from (" 
+                         << orbPos.first << "," << orbPos.second << ") to (" 
+                         << targetPos.first << "," << targetPos.second << ")" << std::endl;
+            }
+            
+            // 创建从当前位置到珠子位置，再到目标位置的路径
+            auto pathToOrb = createPreciseMoveSequence(currentPos, orbPos, clusteredBoard);
+            auto pathToTarget = createPreciseMoveSequence(orbPos, targetPos, clusteredBoard);
+            
+            // 添加到珠子位置的路径（跳过起始点避免重复）
+            if (pathToOrb.size() > 1) {
+                arrangePath.insert(arrangePath.end(), pathToOrb.begin() + 1, pathToOrb.end());
+                currentPos = pathToOrb.back();
+            }
+            
+            // 添加从珠子到目标位置的路径（跳过起始点避免重复）
+            if (pathToTarget.size() > 1) {
+                arrangePath.insert(arrangePath.end(), pathToTarget.begin() + 1, pathToTarget.end());
+                currentPos = pathToTarget.back();
+            }
+        }
+        
+        // 最后移动到最终位置
+        auto finalPath = createPreciseMoveSequence(currentPos, movingOrbFinalPos, clusteredBoard);
+        if (finalPath.size() > 1) {
+            arrangePath.insert(arrangePath.end(), finalPath.begin() + 1, finalPath.end());
+        }
+        
+        if (verbose) {
+            std::cout << "[DEBUG Distributed Phase2] Final step: move to final position (" 
+                     << movingOrbFinalPos.first << "," << movingOrbFinalPos.second << ")" << std::endl;
+            std::cout << "[DEBUG Distributed Phase2] 8+1 Strategy completed with " 
+                     << arrangePath.size() << " total steps" << std::endl;
+        }
+        
+        return arrangePath;
+    } else {
+        if (verbose) {
+            std::cout << "[DEBUG Distributed Phase2] Insufficient available orbs (" 
+                     << availableOrbs.size() << ") for target positions (" 
+                     << targetPositions.size() << ")" << std::endl;
+        }
+        return {}; // 8+1策略失败
+    }
+}
+
+// 分布式路径转换为Route的辅助方法
+std::optional<Route> PSolver::convertDistributedPathToRoute(const std::vector<std::pair<int, int>>& distributedPath, 
+                                                           const NineTarget& target, 
+                                                           const SolverConfig& config) const
+{
+    if (config.verbose) {
+        std::cout << "[DEBUG convertDistributedPath] Input path size: " << distributedPath.size() << std::endl;
+        if (!distributedPath.empty()) {
+            std::cout << "[DEBUG convertDistributedPath] Path: ";
+            for (size_t i = 0; i < distributedPath.size(); i++) {
+                std::cout << "(" << distributedPath[i].first << "," << distributedPath[i].second << ")";
+                if (i < distributedPath.size() - 1) std::cout << " -> ";
+            }
+            std::cout << std::endl;
+        }
+    }
+    
+    if (distributedPath.empty()) {
+        if (config.verbose) {
+            std::cout << "[DEBUG convertDistributedPath] Empty path, returning nullopt" << std::endl;
+        }
+        return std::nullopt;
+    }
+    
+    // 创建路径的PState链 - 确保起始珠子是正确的目标颜色
+    std::vector<PState*> states;
+    PBoard currentBoard = board;
+    
+    // 验证起始位置是否包含目标颜色珠子
+    OrbLocation startPos(distributedPath[0].first, distributedPath[0].second);
+    pad::orbs startOrb = getOrbAt(currentBoard, startPos.first, startPos.second);
+    
+    if (config.verbose) {
+        std::cout << "[DEBUG convertDistributedPath] Starting position (" << startPos.first 
+                 << "," << startPos.second << ") contains orb type: " << (int)startOrb
+                 << ", target color: " << (int)target.targetColor << std::endl;
+    }
+    
+    if (startOrb != target.targetColor) {
+        if (config.verbose) {
+            std::cout << "[DEBUG convertDistributedPath] ERROR: Starting position does not contain target color orb!" << std::endl;
+            std::cout << "[DEBUG convertDistributedPath] Path planning failed - starting orb mismatch" << std::endl;
+        }
+        return std::nullopt;
+    }
+    
+    // 起始状态
+    auto rootState = new PState(currentBoard, startPos, startPos, 0, steps);
+    states.push_back(rootState);
+    
+    // 逐步创建状态链，并验证每一步移动的珠子颜色
+    for (size_t i = 1; i < distributedPath.size(); i++) {
+        OrbLocation fromPos(distributedPath[i-1].first, distributedPath[i-1].second);
+        OrbLocation toPos(distributedPath[i].first, distributedPath[i].second);
+        
+        // 验证当前要移动的珠子是否为目标颜色
+        pad::orbs currentOrb = getOrbAt(currentBoard, fromPos.first, fromPos.second);
+        if (currentOrb != target.targetColor) {
+            if (config.verbose) {
+                std::cout << "[DEBUG convertDistributedPath] WARNING: Step " << i 
+                         << " trying to move non-target orb (type " << (int)currentOrb 
+                         << ") from (" << fromPos.first << "," << fromPos.second << ")" << std::endl;
+            }
+        }
+        
+        auto nextState = new PState(currentBoard, fromPos, toPos, static_cast<int>(i), steps);
+        nextState->parent = states.back();
+        states.push_back(nextState);
+        
+        // 更新棋盘状态
+        currentBoard.swapLocation(fromPos, toPos);
+        
+        if (config.verbose) {
+            std::cout << "[DEBUG convertDistributedPath] Step " << i << ": moved orb from (" 
+                     << fromPos.first << "," << fromPos.second << ") to (" 
+                     << toPos.first << "," << toPos.second << ")" << std::endl;
+        }
+    }
+    
+    // 使用最终状态创建Route
+    if (!states.empty()) {
+        Route route(states.back());
+        
+        if (config.verbose) {
+            std::cout << "[DEBUG convertDistributedPath] Successfully converted to Route" << std::endl;
+            
+            // 打印珠子的最终停止位置
+            std::pair<int, int> finalStopPosition = distributedPath.back();
+            std::cout << "[DEBUG convertDistributedPath] *** FINAL STOP POSITION: (" 
+                     << finalStopPosition.first << "," << finalStopPosition.second << ") ***" << std::endl;
+            
+            // 打印目标9宫格的所有位置及其当前珠子类型
+            std::cout << "[DEBUG convertDistributedPath] Target 9-grid positions around center (" 
+                     << target.centerX << "," << target.centerY << "):" << std::endl;
+            
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dy = -1; dy <= 1; dy++) {
+                    int x = target.centerX + dx;
+                    int y = target.centerY + dy;
+                    if (x >= 0 && x < row && y >= 0 && y < column) {
+                        pad::orbs orbAtPos = getOrbAt(currentBoard, x, y);
+                        char orbChar = (orbAtPos == pad::fire) ? 'R' : 
+                                      (orbAtPos == pad::water) ? 'B' :
+                                      (orbAtPos == pad::wood) ? 'G' :
+                                      (orbAtPos == pad::light) ? 'L' :
+                                      (orbAtPos == pad::dark) ? 'D' :
+                                      (orbAtPos == pad::recovery) ? 'H' : '?';
+                        std::cout << "[DEBUG convertDistributedPath]   Position (" << x << "," << y 
+                                 << ") = " << orbChar << " (target: " 
+                                 << ((target.targetColor == orbAtPos) ? "MATCH" : "MISS") << ")" << std::endl;
+                    }
+                }
+            }
+        }
+        
+        // 清理状态内存（Route会复制需要的数据）
+        for (auto* state : states) {
+            delete state;
+        }
+        
+        return route;
+    }
+    
+    if (config.verbose) {
+        std::cout << "[DEBUG convertDistributedPath] Failed to convert to Route (states empty)" << std::endl;
+    }
+    
+    return std::nullopt;
 }
 
 // Helper method to get orb from PBoard

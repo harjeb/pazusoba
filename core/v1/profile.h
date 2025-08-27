@@ -1028,6 +1028,10 @@ public:
 
     int getScore(const ComboList &list, const Board &board, int moveCount) const override
     {
+        // 严格9FORCE模式：必须形成9宫格，否则给极大惩罚
+        // 计算初始板面上目标颜色珠子的总数
+        int totalTargetOrbs = countTargetOrbs(board);
+        
         // 计算这次消除中目标颜色珠子的总数
         int eliminatedTargetOrbs = 0;
         for (const auto &combo : list)
@@ -1041,22 +1045,64 @@ public:
             }
         }
         
-        // 如果消除了>=9个目标珠子，就必须包含一个9宫格形状
-        if (eliminatedTargetOrbs >= 9)
+        // 如果初始板面有>=9个目标珠子，就强制要求9宫格
+        if (totalTargetOrbs >= 9)
         {
-            if (hasValidNineShape(list))
+            if (eliminatedTargetOrbs >= 9) 
             {
-                // 形成了9宫格，给高分奖励
-                return pad::TIER_NINE_SCORE * 10;
+                // 消除了>=9个目标珠子的情况
+                if (hasValidNineShape(list))
+                {
+                    // 形成了9宫格，给巨大奖励
+                    return pad::TIER_NINE_SCORE * 100;
+                }
+                else
+                {
+                    // 消除了足够珠子但没形成9宫格，给极大负分惩罚
+                    return -500000;
+                }
+            }
+            else if (eliminatedTargetOrbs >= 6)
+            {
+                // 消除了6-8个目标珠子，必须形成部分9宫格
+                if (hasValidNineShape(list))
+                {
+                    // 形成了9宫格形状，给大奖励
+                    return pad::TIER_NINE_SCORE * 80;
+                }
+                else
+                {
+                    // 消除了不少珠子但没形成9宫格，给很大惩罚
+                    return -200000;
+                }
+            }
+            else if (eliminatedTargetOrbs >= 3)
+            {
+                // 消除了3-5个目标珠子，强烈要求朝9宫格方向发展
+                if (hasValidNineShape(list))
+                {
+                    // 形成了9宫格形状，给奖励
+                    return pad::TIER_NINE_SCORE * 60;
+                }
+                else
+                {
+                    // 没形成9宫格，给大惩罚
+                    return -50000;
+                }
+            }
+            else if (eliminatedTargetOrbs > 0)
+            {
+                // 消除了少量目标珠子，给惩罚引导搜索
+                return -10000;
             }
             else
             {
-                // 消除了足够珠子但没形成9宫格，给巨大负分惩罚
-                return -100000;
+                // 没有消除目标珠子，给惩罚引导
+                return -5000;
             }
         }
         
-        // 消除的珠子不够，不施加约束
+        // 板面珠子不够形成9宫格，不施加约束
         return 0;
     }
 };
