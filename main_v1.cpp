@@ -67,14 +67,11 @@ int main(int argc, char *argv[])
     PState::setDiagonalMovementEnabled(config.enableDiagonalMovement);
     
     auto soba = new PSolver(config);
-    std::cout << "Solver initialized, starting solve..." << std::endl;
     
     auto routes = soba->solve(config);
-    std::cout << "Solve completed, found " << routes.size() << " routes." << std::endl;
     
     delete soba;
 
-    std::cout << "Program finished successfully." << std::endl;
     return 0;
 }
 

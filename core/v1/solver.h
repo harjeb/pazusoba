@@ -9,7 +9,6 @@
 #include <string>
 #include <vector>
 #include <set>
-#include <optional>
 #include "pad.h"
 #include "route.h"
 #include "board.h"
@@ -123,9 +122,9 @@ class PSolver
     std::vector<std::pair<int, int>> createPreciseMoveSequence(const std::pair<int, int>& from, const std::pair<int, int>& to, const PBoard& board) const;
     
     /// 分布式路径转换为Route的辅助方法
-    std::optional<Route> convertDistributedPathToRoute(const std::vector<std::pair<int, int>>& distributedPath, 
-                                                      const NineTarget& target, 
-                                                      const SolverConfig& config) const;
+    Route* convertDistributedPathToRoute(const std::vector<std::pair<int, int>>& distributedPath, 
+                                        const NineTarget& target, 
+                                        const SolverConfig& config) const;
     
     /// Helper method to get orb from PBoard
     pad::orbs getOrbAt(const PBoard& pboard, int x, int y) const;

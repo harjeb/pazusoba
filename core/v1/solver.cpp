@@ -121,12 +121,9 @@ PSolver::PSolver(const SolverConfig &config)
 
 std::vector<Profile*> PSolver::createProfiles() const
 {
-    // Default profile (always include ComboProfile)
+    // Default profile (only ComboProfile, no automatic NineProfile)
     std::vector<Profile*> profiles;
     profiles.push_back(new ComboProfile);
-    
-    // Add default NineProfile for wood (keeping original behavior)
-    profiles.push_back(new NineProfile({pad::wood}));
     
     return profiles;
 }
@@ -161,11 +158,6 @@ std::vector<Profile*> PSolver::createProfiles(const SolverConfig &config) const
         profiles.push_back(new ForcedNineProfile(config.nineColors));
     } else if (config.enableNineProfile && !config.nineColors.empty()) {
         profiles.push_back(new NineProfile(config.nineColors));
-    } else {
-        // Keep default wood nine profile if no custom nine profile and no forced mode
-        if (!config.enableNineConstraint) {
-            profiles.push_back(new NineProfile({pad::wood}));
-        }
     }
     
     return profiles;
@@ -1423,9 +1415,10 @@ std::vector<Route> PSolver::solveNineGridDistributed(const SolverConfig& config)
                 }
                 
                 // 将路径转换为Route对象
-                auto distributedRoute = convertDistributedPathToRoute(completePath, bestTarget, config);
-                if (distributedRoute.has_value()) {
-                    routes.push_back(distributedRoute.value());
+                Route* distributedRoute = convertDistributedPathToRoute(completePath, bestTarget, config);
+                if (distributedRoute != nullptr) {
+                    routes.push_back(*distributedRoute);
+                    delete distributedRoute;
                     
                     if (config.verbose) {
                         std::cout << "[DEBUG Distributed] Complete distributed path: ";
@@ -1872,9 +1865,9 @@ std::vector<std::pair<int, int>> PSolver::phaseTwoArrangeGrid(const PBoard& clus
 }
 
 // 分布式路径转换为Route的辅助方法
-std::optional<Route> PSolver::convertDistributedPathToRoute(const std::vector<std::pair<int, int>>& distributedPath, 
-                                                           const NineTarget& target, 
-                                                           const SolverConfig& config) const
+Route* PSolver::convertDistributedPathToRoute(const std::vector<std::pair<int, int>>& distributedPath, 
+                                              const NineTarget& target, 
+                                              const SolverConfig& config) const
 {
     if (config.verbose) {
         std::cout << "[DEBUG convertDistributedPath] Input path size: " << distributedPath.size() << std::endl;
@@ -1892,7 +1885,7 @@ std::optional<Route> PSolver::convertDistributedPathToRoute(const std::vector<st
         if (config.verbose) {
             std::cout << "[DEBUG convertDistributedPath] Empty path, returning nullopt" << std::endl;
         }
-        return std::nullopt;
+        return nullptr;
     }
     
     // 创建路径的PState链 - 确保起始珠子是正确的目标颜色
@@ -1914,7 +1907,7 @@ std::optional<Route> PSolver::convertDistributedPathToRoute(const std::vector<st
             std::cout << "[DEBUG convertDistributedPath] ERROR: Starting position does not contain target color orb!" << std::endl;
             std::cout << "[DEBUG convertDistributedPath] Path planning failed - starting orb mismatch" << std::endl;
         }
-        return std::nullopt;
+        return nullptr;
     }
     
     // 起始状态
@@ -1991,14 +1984,14 @@ std::optional<Route> PSolver::convertDistributedPathToRoute(const std::vector<st
             delete state;
         }
         
-        return route;
+        return new Route(route);
     }
     
     if (config.verbose) {
         std::cout << "[DEBUG convertDistributedPath] Failed to convert to Route (states empty)" << std::endl;
     }
     
-    return std::nullopt;
+    return nullptr;
 }
 
 // Helper method to get orb from PBoard
