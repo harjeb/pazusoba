@@ -447,6 +447,43 @@ std::vector<Route> PSolver::solve(const SolverConfig &config)
         std::cout << board.getBoardStringMultiLine() << std::endl;
     }
 
+    // 如果是9FORCE模式，优先尝试9宫格目标导向算法
+    if (config.enableNineConstraint && !config.nineColors.empty()) {
+        if (config.verbose) {
+            std::cout << "[DEBUG] 9FORCE mode detected, trying 9-grid targeted algorithm first" << std::endl;
+        }
+        
+        auto nineRoutes = solveNineGridTargeted(config);
+        if (!nineRoutes.empty()) {
+            if (config.verbose) {
+                std::cout << "[DEBUG] 9-grid targeted algorithm found " << nineRoutes.size() 
+                         << " potential routes" << std::endl;
+            }
+            
+            // 如果找到9宫格路径，根据verbose设置显示
+            if (config.showRoutePath) {
+                if (config.verbose) {
+                    // Verbose mode: show all 9-grid routes
+                    for (size_t i = 0; i < nineRoutes.size(); i++) {
+                        std::cout << "9-Grid Route " << (i+1) << ": ";
+                        nineRoutes[i].printRoute();
+                    }
+                } else {
+                    // Default mode: show only first 9-grid route
+                    if (!nineRoutes.empty()) {
+                        nineRoutes[0].printRoute();
+                    }
+                }
+            }
+            return nineRoutes;
+        } else {
+            if (config.verbose) {
+                std::cout << "[DEBUG] 9-grid targeted algorithm analysis completed, continuing with traditional search" << std::endl;
+                std::cout << "[DEBUG] Traditional search will now be guided by 9FORCE penalties toward 9-grid formation" << std::endl;
+            }
+        }
+    }
+
     // 如果是+FORCE模式，优先尝试十字目标导向算法
     if (config.enablePlusConstraint && !config.plusColors.empty()) {
         if (config.verbose) {
@@ -800,6 +837,274 @@ std::vector<Route> PSolver::solveCrossTargeted(const SolverConfig& config) const
         if (config.verbose) {
             std::cout << "[DEBUG CrossSolver] Cross target found but route generation not fully implemented" << std::endl;
             std::cout << "[DEBUG CrossSolver] Planned " << movePlan.size() << " moves to form cross" << std::endl;
+        }
+        
+        // 由于Route类需要PState构造，我们暂时返回空列表
+        // 让算法回退到传统搜索
+        return routes;
+    }
+    
+    return routes;
+}
+
+// ===== 9宫格目标导向算法实现 =====
+
+std::vector<NineTarget> PSolver::findPossibleNineGrids(const PBoard& pboard, pad::orbs targetColor, bool verbose) const
+{
+    std::vector<NineTarget> targets;
+    
+    // 遍历所有可能的9宫格中心位置（需要足够的边界空间）
+    for (int centerX = 1; centerX < row - 1; centerX++)
+    {
+        for (int centerY = 1; centerY < column - 1; centerY++)
+        {
+            if (canFormNineGrid(pboard, centerX, centerY, targetColor))
+            {
+                int steps = estimateNineGridSteps(pboard, centerX, centerY, targetColor);
+                int combos = estimateNineGridCombos(pboard, centerX, centerY, targetColor, verbose);
+                NineTarget target(centerX, centerY, targetColor, steps, combos);
+                
+                // 记录需要填充的9宫格位置（3x3区域）
+                for (int dx = -1; dx <= 1; dx++) {
+                    for (int dy = -1; dy <= 1; dy++) {
+                        target.requiredPositions.push_back({centerX + dx, centerY + dy});
+                    }
+                }
+                
+                targets.push_back(target);
+                
+                if (verbose) {
+                    std::cout << "[DEBUG NineGridSolver] Found 9-grid at (" 
+                             << centerX << "," << centerY << ") - Steps: " 
+                             << steps << ", Expected combos: " << combos 
+                             << ", Efficiency: " << target.comboEfficiency << std::endl;
+                }
+            }
+        }
+    }
+    
+    // 按combo效率排序，优先选择combo/步数比例最高的
+    std::sort(targets.begin(), targets.end(), 
+              [](const NineTarget& a, const NineTarget& b) {
+                  // 首先按combo数量排序（降序）
+                  if (a.expectedCombos != b.expectedCombos) {
+                      return a.expectedCombos > b.expectedCombos;
+                  }
+                  // 如果combo数量相同，按效率排序
+                  if (abs(a.comboEfficiency - b.comboEfficiency) > 0.001) {
+                      return a.comboEfficiency > b.comboEfficiency;
+                  }
+                  // 最后按步数排序（升序）
+                  return a.estimatedSteps < b.estimatedSteps;
+              });
+    
+    return targets;
+}
+
+bool PSolver::canFormNineGrid(const PBoard& pboard, int centerX, int centerY, pad::orbs targetColor) const
+{
+    // 检查边界
+    if (centerX < 1 || centerX >= row - 1 || centerY < 1 || centerY >= column - 1)
+        return false;
+    
+    // 统计整个棋盘上的目标颜色珠子
+    int availableOrbs = 0;
+    pboard.traverse([&](int i, int j, pad::orbs orb) {
+        if (orb == targetColor) {
+            availableOrbs++;
+        }
+    });
+    
+    // 判断是否可能形成9宫格：需要至少9个目标颜色珠子
+    return availableOrbs >= 9;
+}
+
+int PSolver::estimateNineGridSteps(const PBoard& pboard, int centerX, int centerY, pad::orbs targetColor) const
+{
+    std::vector<std::pair<int, int>> gridPositions;
+    
+    // 生成3x3区域的所有位置
+    for (int dx = -1; dx <= 1; dx++) {
+        for (int dy = -1; dy <= 1; dy++) {
+            gridPositions.push_back({centerX + dx, centerY + dy});
+        }
+    }
+    
+    int totalSteps = 0;
+    
+    for (const auto& targetPos : gridPositions)
+    {
+        auto currentOrb = getOrbAt(pboard, targetPos.first, targetPos.second);
+        if (currentOrb != targetColor)
+        {
+            // 寻找最近的目标颜色珠子
+            int minDistance = 999;
+            pboard.traverse([&](int x, int y, pad::orbs orb) {
+                if (orb == targetColor) {
+                    // 曼哈顿距离作为估算
+                    int distance = abs(x - targetPos.first) + abs(y - targetPos.second);
+                    minDistance = std::min(minDistance, distance);
+                }
+            });
+            totalSteps += minDistance;
+        }
+    }
+    
+    return totalSteps;
+}
+
+int PSolver::estimateNineGridCombos(const PBoard& pboard, int centerX, int centerY, pad::orbs targetColor, bool verbose) const
+{
+    // 简化估算：统计各颜色珠子数量来估算combo
+    std::map<pad::orbs, int> colorCounts;
+    
+    // 统计当前棋盘上的珠子
+    pboard.traverse([&](int i, int j, pad::orbs orb) {
+        if (orb != pad::empty) {
+            colorCounts[orb]++;
+        }
+    });
+    
+    int totalCombos = 1; // 至少有9宫格这一个combo
+    
+    // 为每种颜色估算可能的combo数
+    for (const auto& pair : colorCounts)
+    {
+        pad::orbs color = pair.first;
+        int count = pair.second;
+        
+        if (color == targetColor)
+        {
+            // 目标颜色：9宫格消耗9个，剩余的可能形成额外combo
+            int remaining = count - 9;
+            if (remaining >= 3)
+            {
+                totalCombos += remaining / 3; // 估算额外combo
+            }
+        }
+        else if (count >= 3)
+        {
+            // 其他颜色：每3个珠子可能形成一个combo
+            totalCombos += count / 3;
+        }
+    }
+    
+    if (verbose) {
+        std::cout << "[DEBUG NineGridSolver] Estimated " << totalCombos 
+                 << " total combos for 9-grid at (" << centerX << "," << centerY << ")" << std::endl;
+    }
+    
+    return totalCombos;
+}
+
+std::vector<OrbMoveplan> PSolver::planNineGridMoves(const PBoard& pboard, const NineTarget& target, bool verbose) const
+{
+    std::vector<OrbMoveplan> moves;
+    
+    for (const auto& pos : target.requiredPositions)
+    {
+        auto currentOrb = getOrbAt(pboard, pos.first, pos.second);
+        if (currentOrb != target.targetColor)
+        {
+            // 寻找最近的目标颜色珠子来填充这个位置
+            int minDistance = 999;
+            int bestX = -1, bestY = -1;
+            
+            pboard.traverse([&](int x, int y, pad::orbs orb) {
+                if (orb == target.targetColor) {
+                    // 检查这个珠子是否已经在目标位置
+                    bool alreadyInTarget = false;
+                    for (const auto& targetPos : target.requiredPositions)
+                    {
+                        if (x == targetPos.first && y == targetPos.second)
+                        {
+                            alreadyInTarget = true;
+                            break;
+                        }
+                    }
+                    
+                    if (!alreadyInTarget)
+                    {
+                        int distance = abs(x - pos.first) + abs(y - pos.second);
+                        if (distance < minDistance)
+                        {
+                            minDistance = distance;
+                            bestX = x;
+                            bestY = y;
+                        }
+                    }
+                }
+            });
+            
+            if (bestX != -1 && bestY != -1)
+            {
+                moves.emplace_back(bestX, bestY, pos.first, pos.second, target.targetColor, minDistance);
+                if (verbose) {
+                    std::cout << "[DEBUG NineGridSolver] Plan move: (" << bestX << "," << bestY 
+                             << ") -> (" << pos.first << "," << pos.second << ") distance=" 
+                             << minDistance << std::endl;
+                }
+            }
+        }
+    }
+    
+    return moves;
+}
+
+std::vector<Route> PSolver::solveNineGridTargeted(const SolverConfig& config) const
+{
+    std::vector<Route> routes;
+    
+    if (!config.enableNineConstraint || config.nineColors.empty())
+    {
+        if (config.verbose) {
+            std::cout << "[DEBUG NineGridSolver] Nine-grid targeted solving not applicable" << std::endl;
+        }
+        return routes;
+    }
+    
+    // 对每种目标颜色寻找9宫格
+    for (const auto& targetColor : config.nineColors)
+    {
+        if (config.verbose) {
+            std::cout << "[DEBUG NineGridSolver] Searching 9-grids for color " << (int)targetColor << std::endl;
+        }
+        
+        auto nineTargets = findPossibleNineGrids(board, targetColor, config.verbose);
+        
+        if (nineTargets.empty())
+        {
+            if (config.verbose) {
+                std::cout << "[DEBUG NineGridSolver] No possible 9-grids found for color " << (int)targetColor << std::endl;
+            }
+            continue;
+        }
+        
+        // 选择最优的9宫格（已按combo数量和效率排序）
+        const auto& bestTarget = nineTargets[0];
+        if (config.verbose) {
+            std::cout << "[DEBUG NineGridSolver] Selected BEST target at (" << bestTarget.centerX 
+                     << "," << bestTarget.centerY << ") - Steps: " << bestTarget.estimatedSteps 
+                     << ", Expected combos: " << bestTarget.expectedCombos 
+                     << ", Efficiency: " << bestTarget.comboEfficiency << std::endl;
+        }
+        
+        auto movePlan = planNineGridMoves(board, bestTarget, config.verbose);
+        
+        if (movePlan.empty())
+        {
+            if (config.verbose) {
+                std::cout << "[DEBUG NineGridSolver] No moves needed for target - 9-grid already formed!" << std::endl;
+            }
+            // 创建一个空的路径表示9宫格已经存在
+            continue;
+        }
+        
+        // 暂时返回空路径列表，表示找到了可行的9宫格目标
+        // 实际的路径计算需要更复杂的实现
+        if (config.verbose) {
+            std::cout << "[DEBUG NineGridSolver] 9-grid target found but route generation not fully implemented" << std::endl;
+            std::cout << "[DEBUG NineGridSolver] Planned " << movePlan.size() << " moves to form 9-grid" << std::endl;
         }
         
         // 由于Route类需要PState构造，我们暂时返回空列表

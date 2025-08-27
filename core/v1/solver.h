@@ -33,6 +33,21 @@ struct CrossTarget {
     }
 };
 
+// 9宫格目标结构
+struct NineTarget {
+    int centerX, centerY;           // 9宫格中心位置
+    pad::orbs targetColor;          // 目标颜色
+    int estimatedSteps;             // 预估需要的移动步数
+    int expectedCombos;             // 预期能形成的combo数量
+    double comboEfficiency;         // combo效率 = expectedCombos / estimatedSteps
+    std::vector<std::pair<int, int>> requiredPositions; // 需要填充的位置
+    
+    NineTarget(int x, int y, pad::orbs color, int steps, int combos = 1) 
+        : centerX(x), centerY(y), targetColor(color), estimatedSteps(steps), expectedCombos(combos) {
+        comboEfficiency = (steps > 0) ? (double)combos / steps : 0.0;
+    }
+};
+
 // 珠子移动计划
 struct OrbMoveplan {
     int fromX, fromY;               // 源位置
@@ -76,6 +91,14 @@ class PSolver
     int estimateTotalCombos(const PBoard& board, int centerX, int centerY, pad::orbs targetColor, bool verbose = false) const;
     std::vector<OrbMoveplan> planCrossMoves(const PBoard& board, const CrossTarget& target, bool verbose = false) const;
     std::vector<Route> solveCrossTargeted(const SolverConfig& config) const;
+    
+    /// 9宫格目标导向算法相关方法
+    std::vector<NineTarget> findPossibleNineGrids(const PBoard& board, pad::orbs targetColor, bool verbose = false) const;
+    bool canFormNineGrid(const PBoard& board, int centerX, int centerY, pad::orbs targetColor) const;
+    int estimateNineGridSteps(const PBoard& board, int centerX, int centerY, pad::orbs targetColor) const;
+    int estimateNineGridCombos(const PBoard& board, int centerX, int centerY, pad::orbs targetColor, bool verbose = false) const;
+    std::vector<OrbMoveplan> planNineGridMoves(const PBoard& board, const NineTarget& target, bool verbose = false) const;
+    std::vector<Route> solveNineGridTargeted(const SolverConfig& config) const;
     
     /// Helper method to get orb from PBoard
     pad::orbs getOrbAt(const PBoard& pboard, int x, int y) const;
