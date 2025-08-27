@@ -1135,50 +1135,58 @@ std::vector<Route> PSolver::generateNineGridRoutes(const NineTarget& target, con
 {
     std::vector<Route> routes;
     
-    // 实用方法：设置9宫格约束，然后运行一个受限的传统搜索
+    // 实用方法：不使用严格约束，而是运行更大范围的搜索并过滤结果
     if (config.verbose) {
-        std::cout << "[DEBUG NineGridSolver] Running constrained search focused on 9-grid at ("
+        std::cout << "[DEBUG NineGridSolver] Running extended search targeting 9-grid at ("
                  << target.centerX << "," << target.centerY << ")" << std::endl;
     }
     
-    // 启用9宫格约束，限制搜索范围
-    PState::setNineGridConstraint(true, OrbLocation(target.centerX, target.centerY));
+    // 不设置9宫格约束，让搜索更自由，但增加搜索步数来形成9宫格
+    // PState::setNineGridConstraint(true, OrbLocation(target.centerX, target.centerY));
     
-    // 运行一个小规模的传统搜索（较少的步数和较小的搜索空间）
+    // 运行一个扩展的传统搜索（更多步数以确保能形成9宫格）
     int originalSteps = steps;
     int originalSize = size;
     
-    // 临时设置更小的搜索参数
-    const_cast<PSolver*>(this)->steps = std::min(10, steps); // 限制步数
-    const_cast<PSolver*>(this)->size = std::min(500, size);   // 限制搜索空间
+    // 临时设置更合理的搜索参数
+    const_cast<PSolver*>(this)->steps = std::min(15, steps + 5); // 增加步数限制
+    const_cast<PSolver*>(this)->size = std::min(1000, size);     // 适当增加搜索空间
     
     try {
         // 运行传统搜索
-        auto constrainedRoutes = const_cast<PSolver*>(this)->solve(false); // 不重置profiles
+        auto extendedRoutes = const_cast<PSolver*>(this)->solve(false); // 不重置profiles
         
-        if (!constrainedRoutes.empty()) {
-            // 过滤出实际形成9宫格的路径
-            for (auto& route : constrainedRoutes) {
-                // 这里可以添加验证逻辑检查是否真的形成了9宫格
-                routes.push_back(route);
-                if (routes.size() >= 3) break; // 限制返回的路径数量
+        if (!extendedRoutes.empty()) {
+            // 验证并过滤出实际形成9宫格的路径
+            for (auto& route : extendedRoutes) {
+                if (validateNineGridFormation(route, target.targetColor, config.verbose)) {
+                    routes.push_back(route);
+                    if (config.verbose) {
+                        std::cout << "[DEBUG NineGridSolver] Validated 9-grid route with " 
+                                 << route.getCombo() << " combos, " << route.getStep() << " steps" << std::endl;
+                    }
+                    if (routes.size() >= 3) break; // 限制返回的路径数量
+                }
             }
             
-            if (config.verbose) {
-                std::cout << "[DEBUG NineGridSolver] Constrained search found " << routes.size() 
-                         << " potential 9-grid routes" << std::endl;
+            if (routes.empty() && config.verbose) {
+                std::cout << "[DEBUG NineGridSolver] No valid 9-grid formation found in " 
+                         << extendedRoutes.size() << " candidate routes" << std::endl;
+            } else if (config.verbose) {
+                std::cout << "[DEBUG NineGridSolver] Extended search found " << routes.size() 
+                         << " valid 9-grid routes from " << extendedRoutes.size() << " candidates" << std::endl;
             }
         }
     } catch (...) {
         if (config.verbose) {
-            std::cout << "[DEBUG NineGridSolver] Exception during constrained search" << std::endl;
+            std::cout << "[DEBUG NineGridSolver] Exception during extended search" << std::endl;
         }
     }
     
-    // 恢复原始参数并清除约束
+    // 恢复原始参数
     const_cast<PSolver*>(this)->steps = originalSteps;
     const_cast<PSolver*>(this)->size = originalSize;
-    PState::setNineGridConstraint(false, OrbLocation(0, 0));
+    // PState::setNineGridConstraint(false, OrbLocation(0, 0));
     
     return routes;
 }
@@ -1213,6 +1221,74 @@ std::vector<std::pair<int, int>> PSolver::calculateOptimalMoveSequence(const std
     }
     
     return sequence;
+}
+
+bool PSolver::validateNineGridFormation(const Route& route, pad::orbs targetColor, bool verbose) const
+{
+    // 获取最终棋盘状态
+    std::string finalBoardStr = route.getFinalBoardString();
+    
+    // 将字符串转换为棋盘数据结构进行分析
+    std::vector<std::vector<pad::orbs>> finalBoard(row, std::vector<pad::orbs>(column));
+    
+    // 解析最终棋盘字符串
+    for (int i = 0; i < row && i * column < static_cast<int>(finalBoardStr.length()); i++) {
+        for (int j = 0; j < column && i * column + j < static_cast<int>(finalBoardStr.length()); j++) {
+            char orbChar = finalBoardStr[i * column + j];
+            // 将字符转换为orb类型
+            switch(orbChar) {
+                case 'R': finalBoard[i][j] = pad::fire; break;
+                case 'B': finalBoard[i][j] = pad::water; break;
+                case 'G': finalBoard[i][j] = pad::wood; break;
+                case 'L': finalBoard[i][j] = pad::light; break;
+                case 'D': finalBoard[i][j] = pad::dark; break;
+                case 'H': finalBoard[i][j] = pad::recovery; break;
+                default: finalBoard[i][j] = pad::empty; break;
+            }
+        }
+    }
+    
+    // 检查所有可能的3x3区域是否形成了目标颜色的9宫格
+    for (int centerX = 1; centerX < row - 1; centerX++) {
+        for (int centerY = 1; centerY < column - 1; centerY++) {
+            bool isValidNineGrid = true;
+            int targetOrbCount = 0;
+            
+            // 检查3x3区域的所有9个位置
+            for (int dx = -1; dx <= 1 && isValidNineGrid; dx++) {
+                for (int dy = -1; dy <= 1 && isValidNineGrid; dy++) {
+                    int x = centerX + dx;
+                    int y = centerY + dy;
+                    
+                    if (x >= 0 && x < row && y >= 0 && y < column) {
+                        if (finalBoard[x][y] == targetColor) {
+                            targetOrbCount++;
+                        } else {
+                            isValidNineGrid = false;
+                        }
+                    } else {
+                        isValidNineGrid = false;
+                    }
+                }
+            }
+            
+            // 如果找到了完整的9宫格（9个目标颜色珠子）
+            if (isValidNineGrid && targetOrbCount == 9) {
+                if (verbose) {
+                    std::cout << "[DEBUG NineGridValidator] Found valid 9-grid at (" 
+                             << centerX << "," << centerY << ") with " << targetOrbCount 
+                             << " target orbs" << std::endl;
+                }
+                return true;
+            }
+        }
+    }
+    
+    if (verbose) {
+        std::cout << "[DEBUG NineGridValidator] No valid 9-grid formation found in final board" << std::endl;
+    }
+    
+    return false;
 }
 
 // Helper method to get orb from PBoard
