@@ -54,7 +54,7 @@ namespace pad
         downRight
     };
     /// Direction names
-    const std::string DIRECTION_NAMES[8] = {"UL", "U", "UR", "L", "R", "DL", "D", "DR"};
+    const std::string DIRECTION_NAMES[8] = {"Q", "U", "E", "L", "R", "Z", "D", "C"};
 
     /// Score for all profiles and based on how important it is
     // enum score

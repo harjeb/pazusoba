@@ -77,7 +77,7 @@ namespace pazusoba
         // TODO: consider weight to adjust the heuristic
 
         /// Names of every direction
-        const string DIRECTION_NAMES[8] = {"UL", "U", "UR", "L", "R", "DL", "D", "DR"};
+        const string DIRECTION_NAMES[8] = {"Q", "U", "E", "L", "R", "Z", "D", "C"};
     } // namespace pad
 } // namespace pazusoba
 

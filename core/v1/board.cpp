@@ -357,6 +357,33 @@ void PBoard::printBoardInfo()
     delete[] counter;
 }
 
+std::string PBoard::getBoardString() const
+{
+    std::string result;
+    for (int i = 0; i < row * column; i++)
+    {
+        auto orb = board[i];
+        result += pad::ORB_SIMULATION_NAMES[orb];
+    }
+    return result;
+}
+
+std::string PBoard::getBoardStringMultiLine() const
+{
+    std::string result;
+    for (int i = 0; i < row; i++)
+    {
+        for (int j = 0; j < column; j++)
+        {
+            auto orb = board[INDEX_OF(i, j)];
+            result += pad::ORB_SIMULATION_NAMES[orb];
+        }
+        if (i < row - 1)  // Don't add newline after last row
+            result += "\n";
+    }
+    return result;
+}
+
 // MARK: - Utils
 int PBoard::getMaxCombo(int *counter)
 {

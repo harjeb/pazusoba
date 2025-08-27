@@ -7,6 +7,11 @@
 #include <cmath>
 #include "state.h"
 
+// Initialize static variables
+bool PState::useNineGridConstraint = false;
+OrbLocation PState::nineGridCenter = OrbLocation(0, 0);
+bool PState::enableDiagonalMovement = true;
+
 // MARK: - Constrctor
 
 PState::PState(const PBoard &board, const OrbLocation &from, const OrbLocation &to, int step, int maxStep)
@@ -15,8 +20,8 @@ PState::PState(const PBoard &board, const OrbLocation &from, const OrbLocation &
     this->board = board;
     // don't use current and previous because they are not yet initialised
     this->board.swapLocation(from, to);
-    this->erasedBoard = this->board;
-    this->score = erasedBoard.rateBoard();
+    auto copy = this->board;
+    this->score = copy.rateBoard();
 
     // Copy other variables
     this->previous = from;
@@ -50,11 +55,6 @@ bool PState::operator>(const PState &a) const
 
 bool PState::operator<(const PState &a) const
 {
-    // if similar score, check steps
-    if ((score / 1000) == (a.score / 1000))
-    {
-        return step > a.step;
-    }
     return score < a.score;
 }
 
@@ -82,32 +82,27 @@ PState::PStateList PState::getChildren()
     {
         for (int j = -1; j <= 1; j++)
         {
-            // same location
+            // Skip center position (no movement)
             if (i == 0 && j == 0)
                 continue;
 
-            if (
-                (i == -1 && j == -1) ||
-                (i == 1 && j == 1) ||
-                (i == -1 && j == 1) ||
-                (i == 1 && j == -1))
-            {
-                // Only allow diagonal when it is close to the end
-                //                double percent = double(step) / double(maxStep);
-                //                if (percent < 0.9)
-                //                    continue;
+            // Check diagonal movement restriction
+            bool isDiagonal = (i != 0 && j != 0);
+            if (isDiagonal && !enableDiagonalMovement)
                 continue;
-            }
 
             auto next = OrbLocation(current.first + i, current.second + j);
             // Ignore current and previous location so only 7 possible locations
+            if (next == current || next == previous)
+                continue;
 
             // It must be a valid location so not out of bound
             if (board.validLocation(next))
             {
-                if (next == previous)
+                // Check 9-grid constraint if enabled
+                if (useNineGridConstraint && !isWithinNineGrid(next))
                     continue;
-                
+                    
                 // Setup new state and add this to children
                 auto nextState = new PState(board, current, next, step + 1, maxStep);
                 if (nextState != nullptr)
@@ -162,4 +157,29 @@ void PState::printState()
 
     printStateFromRoot(this);
     std::cout << "nullptr\n\n";
+}
+
+// MARK: - 9-Grid Constraint Methods
+
+bool PState::isWithinNineGrid(const OrbLocation &location) const
+{
+    if (!useNineGridConstraint)
+        return true;
+        
+    int row_diff = abs(location.first - nineGridCenter.first);
+    int col_diff = abs(location.second - nineGridCenter.second);
+    
+    // Within 3x3 grid means distance <= 1 from center
+    return (row_diff <= 1 && col_diff <= 1);
+}
+
+void PState::setNineGridConstraint(bool enable, const OrbLocation &center)
+{
+    useNineGridConstraint = enable;
+    nineGridCenter = center;
+}
+
+void PState::setDiagonalMovementEnabled(bool enable)
+{
+    enableDiagonalMovement = enable;
 }

@@ -42,8 +42,12 @@ public:
 
     void printRoute();
     void printErasedBoard();
+    void printFinalBoard();  // Display final board state after moves
+    std::string getFinalBoardString() const;  // Get final board as string
+    std::string getFinalBoardStringMultiLine() const;  // Get final board as multi-line string
     inline int getStep() { return step; }
     inline int getCombo() { return combo; }
+    inline int getScore() { return score; }
     inline void saveToDisk() { state->saveToDisk(); }
 };
 

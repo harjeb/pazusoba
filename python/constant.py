@@ -36,7 +36,7 @@ class Direction(Enum):
     DOWN_RIGHT = 7
 
 # 8 directions in total
-DIRECTION_NAMES = ["UL", "U", "UR", "L", "R", "DL", "D", "DR"]
+DIRECTION_NAMES = ["Q", "U", "E", "L", "R", "Z", "D", "C"]
 
 # scores, max 1000 meaning one combo
 TIER_ONE_SCORE = 1

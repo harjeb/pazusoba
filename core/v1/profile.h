@@ -50,18 +50,22 @@ public:
     int getScore(const ComboList &list, const Board &board, int moveCount)
     {
         int score = 0;
+        // std::cout << "[DEBUG ProfileManager] getScore called with " << list.size() << " combos" << std::endl;
 
         for (auto &p : profiles)
         {
-            score += p->getScore(list, board, moveCount);
-
+            int profileScore = p->getScore(list, board, moveCount);
+            // std::cout << "[DEBUG ProfileManager] Profile '" << p->getProfileName() 
+            //          << "' scored: " << profileScore << std::endl;
+            score += profileScore;
         }
-        //std::cout << score;
+        // std::cout << "[DEBUG ProfileManager] Total score: " << score << std::endl;
         return score;
     }
 
     void clear()
     {
+        // std::cout << "[DEBUG ProfileManager] Clearing " << profiles.size() << " profiles" << std::endl;
         // Delete all profiles
         for (const auto &p : profiles)
         {
@@ -77,15 +81,20 @@ public:
     }
 
     // Clear all profiles and set it to a new one
-    void updateProfile(const std::vector<Profile *> &p)
+    void updateProfile(const std::vector<Profile *> &newProfiles)
     {
+        // std::cout << "[DEBUG ProfileManager] updateProfile called with " << newProfiles.size() << " profiles:" << std::endl;
+        // for (const auto& p : newProfiles) {
+        //     std::cout << "[DEBUG ProfileManager]   - " << p->getProfileName() << std::endl;
+        // }
+        
         clear();
-        for (const auto &p : profiles)
-        {
-            delete p;
-        }
-        profiles.clear();
-        profiles = p;
+        profiles = newProfiles;
+        
+        // std::cout << "[DEBUG ProfileManager] After update, ProfileManager has " << profiles.size() << " profiles:" << std::endl;
+        // for (const auto& p : profiles) {
+        //     std::cout << "[DEBUG ProfileManager]   - " << p->getProfileName() << std::endl;
+        // }
     }
 };
 
@@ -799,6 +808,256 @@ public:
         }
 
         return score;
+    }
+};
+
+// ===== 强制约束Profile类 =====
+// 这些Profile实现"必须形成特定形状"的约束逻辑
+// 如果有足够珠子但没有形成要求的形状，就给极低分数
+
+class ForcedPlusProfile : public ShapeProfile
+{
+public:
+    ForcedPlusProfile() : ShapeProfile() 
+    {
+        std::cout << "[DEBUG] ForcedPlusProfile constructor (no orbs)" << std::endl;
+    }
+    ForcedPlusProfile(std::vector<Orb> orbs) : ShapeProfile(orbs) 
+    {
+        std::cout << "[DEBUG] ForcedPlusProfile constructor with " << orbs.size() << " orbs" << std::endl;
+    }
+
+    std::string getProfileName() const override
+    {
+        return "+FORCE";
+    }
+
+    // 统计棋盘上指定颜色珠子的总数
+    int countTargetOrbs(const Board &board) const
+    {
+        int count = 0;
+        for (int i = 0; i < row * column; i++)
+        {
+            if (board[i] != pad::empty && isTheOrb(board[i]))
+            {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    // 检查combo列表中是否包含有效的十字形状
+    bool hasValidPlusShape(const ComboList &list) const
+    {
+        for (const auto &c : list)
+        {
+            // 十字形状必须正好是5个珠子
+            if (c.size() == 5 && isTheOrb(c[0].orb))
+            {
+                // 尝试每个珠子作为潜在的中心点
+                for (const auto &centerLoc : c)
+                {
+                    int centerX = centerLoc.first;
+                    int centerY = centerLoc.second;
+                    
+                    // 统计十字四个方向的珠子数量（包括中心）
+                    int horizontalCount = 1; // 包括中心珠子
+                    int verticalCount = 1;   // 包括中心珠子
+                    
+                    for (const auto &loc : c)
+                    {
+                        int x = loc.first;
+                        int y = loc.second;
+                        
+                        if (x == centerX && y == centerY) continue; // 跳过中心点
+                        
+                        // 统计水平方向（同行）的珠子
+                        if (x == centerX) {
+                            verticalCount++;
+                        }
+                        // 统计垂直方向（同列）的珠子  
+                        if (y == centerY) {
+                            horizontalCount++;
+                        }
+                    }
+                    
+                    // 如果四个方向都有珠子，就是有效的十字
+                    if (horizontalCount == 3 && verticalCount == 3)
+                    {
+                        // std::cout << "[DEBUG +FORCE] Valid plus shape detected with center at (" 
+                        //          << centerX << "," << centerY << "), horizontal: " 
+                        //          << horizontalCount << ", vertical: " << verticalCount << std::endl;
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    int getScore(const ComboList &list, const Board &board, int moveCount) const override
+    {
+        // 计算初始板面上目标颜色珠子的总数
+        int totalTargetOrbs = countTargetOrbs(board);
+        
+        // 计算这次消除中目标颜色珠子的总数
+        int eliminatedTargetOrbs = 0;
+        for (const auto &combo : list)
+        {
+            for (const auto &orb : combo)
+            {
+                if (isTheOrb(orb.orb))
+                {
+                    eliminatedTargetOrbs++;
+                }
+            }
+        }
+        
+        // 调试输出
+        // if (eliminatedTargetOrbs > 0)
+        // {
+        //     std::cout << "[DEBUG +FORCE] Board has " << totalTargetOrbs 
+        //              << " target orbs, eliminated " << eliminatedTargetOrbs 
+        //              << " target orbs, combos: " << list.size();
+        //     if (totalTargetOrbs >= 5) {
+        //         std::cout << " (>=5 on board, constraint applies)";
+        //     } else {
+        //         std::cout << " (<5 on board, no constraint)";
+        //     }
+        //     std::cout << std::endl;
+        // }
+        
+        // 如果初始板面有>=5个目标珠子，就强制要求十字
+        if (totalTargetOrbs >= 5)
+        {
+            if (eliminatedTargetOrbs > 0) 
+            {
+                // 有消除目标珠子的情况
+                if (hasValidPlusShape(list))
+                {
+                    // std::cout << "[DEBUG +FORCE] Valid plus shape found! Reward!" << std::endl;
+                    return pad::TIER_TEN_SCORE * 10;
+                }
+                else
+                {
+                    // std::cout << "[DEBUG +FORCE] Eliminated orbs but no plus shape! PENALTY!" << std::endl;
+                    return -100000;
+                }
+            }
+            else
+            {
+                // 没有消除目标珠子，但板面有足够珠子，也给轻微惩罚
+                // 这样可以引导搜索朝向消除目标珠子的方向
+                // std::cout << "[DEBUG +FORCE] No target orbs eliminated, small penalty to guide search" << std::endl;
+                return -1000;  // 小惩罚，不会完全阻止，但会降低优先级
+            }
+        }
+        
+        // 板面珠子不够或者没有消除目标珠子，不施加约束
+        return 0;
+    }
+};
+
+class ForcedNineProfile : public ShapeProfile
+{
+public:
+    ForcedNineProfile() : ShapeProfile() {}
+    ForcedNineProfile(std::vector<Orb> orbs) : ShapeProfile(orbs) {}
+
+    std::string getProfileName() const override
+    {
+        return "9FORCE";
+    }
+
+    // 统计棋盘上指定颜色珠子的总数
+    int countTargetOrbs(const Board &board) const
+    {
+        int count = 0;
+        for (int i = 0; i < row * column; i++)
+        {
+            if (board[i] != pad::empty && isTheOrb(board[i]))
+            {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    // 检查combo列表中是否包含有效的9宫格形状
+    bool hasValidNineShape(const ComboList &list) const
+    {
+        for (const auto &c : list)
+        {
+            // must erase 9 orbs
+            if (c.size() >= 9 && isTheOrb(c[0].orb))
+            {
+                std::map<int, int> vertical;
+                std::map<int, int> horizontal;
+
+                // Collect info
+                for (const auto &loc : c)
+                {
+                    int x = loc.first;
+                    int y = loc.second;
+                    vertical[x]++;
+                    horizontal[y]++;
+                }
+
+                int count = 0;
+                for (auto curr = vertical.begin(); curr != vertical.end(); curr++)
+                {
+                    auto value = curr->second;
+                    if (value == 3)
+                        count++;
+                }
+                for (auto curr = horizontal.begin(); curr != horizontal.end(); curr++)
+                {
+                    auto value = curr->second;
+                    if (value == 3)
+                        count++;
+                }
+
+                if (count >= 6)
+                {
+                    return true; // 找到有效9宫格
+                }
+            }
+        }
+        return false;
+    }
+
+    int getScore(const ComboList &list, const Board &board, int moveCount) const override
+    {
+        // 计算这次消除中目标颜色珠子的总数
+        int eliminatedTargetOrbs = 0;
+        for (const auto &combo : list)
+        {
+            for (const auto &orb : combo)
+            {
+                if (isTheOrb(orb.orb))
+                {
+                    eliminatedTargetOrbs++;
+                }
+            }
+        }
+        
+        // 如果消除了>=9个目标珠子，就必须包含一个9宫格形状
+        if (eliminatedTargetOrbs >= 9)
+        {
+            if (hasValidNineShape(list))
+            {
+                // 形成了9宫格，给高分奖励
+                return pad::TIER_NINE_SCORE * 10;
+            }
+            else
+            {
+                // 消除了足够珠子但没形成9宫格，给巨大负分惩罚
+                return -100000;
+            }
+        }
+        
+        // 消除的珠子不够，不施加约束
+        return 0;
     }
 };
 

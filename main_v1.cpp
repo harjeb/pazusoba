@@ -1,49 +1,158 @@
 #include <iostream>
+#include <string>
+#include <cstring>
 #include "core/v1/solver.h"
+#include "core/v1/solver_config.h"
 
-/// This handles user input from the console, mainly board file and min erase condition
-PSolver *handleInput(int, char **);
+/// This handles user input from the console with extended configuration
+SolverConfig parseArguments(int argc, char **argv);
 
 int main(int argc, char *argv[])
 {
-    auto soba = handleInput(argc, argv);
-    soba->solve();
+    std::cout << "Pazusoba Solver V1 (Extended) starting..." << std::endl;
+    
+    // Parse command line arguments
+    SolverConfig config = parseArguments(argc, argv);
+    
+    if (config.verbose) {
+        std::cout << "Configuration:" << std::endl;
+        std::cout << "  Board: " << config.filePath << std::endl;
+        std::cout << "  Min erase: " << config.minErase << std::endl;
+        std::cout << "  Max steps: " << config.maxStep << std::endl;
+        std::cout << "  Search size: " << config.maxSize << std::endl;
+        std::cout << "  Diagonal movement: " << (config.enableDiagonalMovement ? "enabled" : "disabled") << std::endl;
+        
+        if (!config.priorityColors.empty()) {
+            std::cout << "  Priority colors: ";
+            for (auto color : config.priorityColors) {
+                std::cout << SolverConfig::colorToString(color) << " ";
+            }
+            std::cout << std::endl;
+        }
+        
+        if (config.enablePlusProfile && !config.plusColors.empty()) {
+            std::cout << "  Plus priority colors: ";
+            for (auto color : config.plusColors) {
+                std::cout << SolverConfig::colorToString(color) << " ";
+            }
+            std::cout << std::endl;
+        }
+        
+        if (config.enableNineProfile && !config.nineColors.empty()) {
+            std::cout << "  Nine-grid priority colors: ";
+            for (auto color : config.nineColors) {
+                std::cout << SolverConfig::colorToString(color) << " ";
+            }
+            std::cout << std::endl;
+        }
+        
+        if (config.enablePlusConstraint && !config.plusColors.empty()) {
+            std::cout << "  Plus FORCED mode colors: ";
+            for (auto color : config.plusColors) {
+                std::cout << SolverConfig::colorToString(color) << " ";
+            }
+            std::cout << std::endl;
+        }
+        
+        if (config.enableNineConstraint && !config.nineColors.empty()) {
+            std::cout << "  Nine-grid FORCED mode colors: ";
+            for (auto color : config.nineColors) {
+                std::cout << SolverConfig::colorToString(color) << " ";
+            }
+            std::cout << std::endl;
+        }
+    }
+    
+    // Set diagonal movement in PState
+    PState::setDiagonalMovementEnabled(config.enableDiagonalMovement);
+    
+    auto soba = new PSolver(config);
+    std::cout << "Solver initialized, starting solve..." << std::endl;
+    
+    auto routes = soba->solve(config);
+    std::cout << "Solve completed, found " << routes.size() << " routes." << std::endl;
+    
     delete soba;
 
+    std::cout << "Program finished successfully." << std::endl;
     return 0;
 }
 
-PSolver *handleInput(int argc, char *argv[])
+SolverConfig parseArguments(int argc, char **argv)
 {
-    // std::string filePath = "assets/sample_board_floodfill_bug.txt";
-    std::string filePath = "RHGHDRGGBBGGDBLLHBGGGRLHGHDGLG";
-    // std::string filePath = "LHHLHDLDDLHLDDLDHDDDLLHDLHDHHDHHLDLDLHDHDH";
-    int minErase = 3;
-    int maxStep = 50;
-    int maxSize = 20000;
-
-    // Read from command line
-    if (argc > 1)
-    {
-        filePath = argv[1];
+    SolverConfig config;
+    
+    // Parse positional arguments first
+    if (argc > 1) {
+        std::string arg1 = argv[1];
+        if (arg1 == "--help" || arg1 == "-h") {
+            SolverConfig::printUsage();
+            exit(0);
+        }
+        config.filePath = arg1;
     }
-    if (argc > 2)
-    {
-        minErase = atoi(argv[2]);
-        // min 3, max 5 for now
-        if (minErase < 3)
-            minErase = 2;
-        if (minErase > 5)
-            minErase = 5;
+    
+    if (argc > 2) {
+        config.minErase = atoi(argv[2]);
+        if (config.minErase < 3) config.minErase = 3;
+        if (config.minErase > 5) config.minErase = 5;
     }
-    if (argc > 3)
-    {
-        maxStep = atoi(argv[3]);
+    
+    if (argc > 3) {
+        config.maxStep = atoi(argv[3]);
     }
-    if (argc > 4)
-    {
-        maxSize = atoi(argv[4]);
+    
+    if (argc > 4) {
+        config.maxSize = atoi(argv[4]);
     }
-
-    return new PSolver(filePath, minErase, maxStep, maxSize);
+    
+    // Parse extended options
+    for (int i = 1; i < argc; i++) {
+        std::string arg = argv[i];
+        
+        if (arg.find("--colors=") == 0) {
+            std::string colors = arg.substr(9);
+            config.priorityColors = SolverConfig::parseColorList(colors);
+        }
+        else if (arg.find("--plus=") == 0) {
+            std::string colors = arg.substr(7);
+            config.enablePlusProfile = true;
+            config.plusColors = SolverConfig::parseColorList(colors);
+        }
+        else if (arg.find("--nine=") == 0) {
+            std::string colors = arg.substr(7);
+            config.enableNineProfile = true;
+            config.nineColors = SolverConfig::parseColorList(colors);
+        }
+        else if (arg.find("--plus-force=") == 0) {
+            std::string colors = arg.substr(13);
+            config.enablePlusConstraint = true;
+            config.plusColors = SolverConfig::parseColorList(colors);
+        }
+        else if (arg.find("--nine-force=") == 0) {
+            std::string colors = arg.substr(13);
+            config.enableNineConstraint = true;
+            config.nineColors = SolverConfig::parseColorList(colors);
+        }
+        else if (arg == "--no-diagonal") {
+            config.enableDiagonalMovement = false;
+        }
+        else if (arg == "--no-board") {
+            config.showFinalBoard = false;
+        }
+        else if (arg == "--no-path") {
+            config.showRoutePath = false;
+        }
+        else if (arg == "--no-score") {
+            config.showScore = false;
+        }
+        else if (arg == "--no-transform") {
+            config.showBoardTransform = false;
+        }
+        else if (arg == "--verbose") {
+            config.verbose = true;
+        }
+    }
+    
+    return config;
 }

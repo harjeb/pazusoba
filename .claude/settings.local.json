@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pazusoba_v1.exe:*)",
+      "Bash(\"D:\\pycode\\pazusoba\\bin\\Debug\\pazusoba_v1.exe\" RHGHDRGGBBGGDBLLHBGGGRLHGHDGLG 3 20 1000 --plus=G --verbose)",
+      "Bash(\"D:\\pycode\\pazusoba\\bin\\Debug\\pazusoba_v1.exe\" RHGHDRGGBBGGDBLLHBGGGRLHGHDGLG 3 20 1000 --verbose)",
+      "Bash(\"D:\\pycode\\pazusoba\\bin\\Debug\\pazusoba_v1.exe\" GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG 3 20 1000 --plus=G --verbose)",
+      "Bash(\"D:\\pycode\\pazusoba\\bin\\Debug\\pazusoba_v1.exe\" RGBGGGRGBGGGRGBGGGRGBGGGRGBGGG 3 20 1000 --plus=G --verbose)",
+      "Bash(\"D:\\pycode\\pazusoba\\bin\\Debug\\pazusoba_v1.exe\" \"GGGGGGGGGGGGGGGGGGGGGGGGGGGGG\" 3 20 1000 --plus-force=G --verbose)",
+      "Bash(\"D:\\pycode\\pazusoba\\bin\\Debug\\pazusoba_v1.exe\" \"GGGGGGGGGGGGGGGGGGGGGGGGGGGGGG\" 3 20 1000 --plus-force=G --verbose)",
+      "Bash(\"D:\\pycode\\pazusoba\\bin\\Debug\\pazusoba_v1.exe\" \"RGBGGGRGBGGGRGBGGGRGBGGGRGBGGG\" 3 20 1000 --plus-force=G --verbose)",
+      "Bash(\"D:\\pycode\\pazusoba\\bin\\Debug\\pazusoba_v1.exe\" \"RGBGGGRGBGGGRGBGGGRGBGGGRGBGGG\" 3 20 1000 --verbose)",
+      "Bash(\"D:\\pycode\\pazusoba\\bin\\Debug\\pazusoba_v1.exe\" \"GGGGGGRRRRRRBBBBBBLLLLLLDDDDDH\" 3 20 1000 --plus-force=G --verbose)"
+    ],
+    "deny": []
+  }
+}

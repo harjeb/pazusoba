@@ -37,6 +37,21 @@ void Route::printErasedBoard()
     erasedBoard.printBoard();
 }
 
+void Route::printFinalBoard()
+{
+    finalBoard.printBoard();
+}
+
+std::string Route::getFinalBoardString() const
+{
+    return finalBoard.getBoardString();
+}
+
+std::string Route::getFinalBoardStringMultiLine() const
+{
+    return finalBoard.getBoardStringMultiLine();
+}
+
 void Route::convertFromState(const PState *s)
 {
     if (s != nullptr)

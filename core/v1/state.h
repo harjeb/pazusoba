@@ -41,6 +41,16 @@ public:
     OrbLocation current;
     // Save the parent's address to track back
     PState *parent = nullptr;
+    
+    // 9-grid constraint variables
+    static bool useNineGridConstraint;
+    static OrbLocation nineGridCenter;
+    
+    // Diagonal movement control
+    static bool enableDiagonalMovement;
+    
+    // Check if a location is within the 3x3 grid constraint
+    bool isWithinNineGrid(const OrbLocation &location) const;
 
     // This is only for testing
     PState(int s) : score(s) {}
@@ -60,6 +70,14 @@ public:
 
     // Save the entire state from begining to the end to the disk
     void saveToDisk();
+    
+    // Static methods for 9-grid constraint
+    static void setNineGridConstraint(bool enable, const OrbLocation &center = OrbLocation(0,0));
+    static bool isNineGridEnabled() { return useNineGridConstraint; }
+    
+    // Static methods for diagonal movement control
+    static void setDiagonalMovementEnabled(bool enable);
+    static bool isDiagonalMovementEnabled() { return enableDiagonalMovement; }
 };
 
 #endif

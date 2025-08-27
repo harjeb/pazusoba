@@ -142,9 +142,28 @@ public:
 
     /// Print out some info about the board we have
     void printBoardInfo();
+    
+    /// Get board as string (RHGHDR format)
+    std::string getBoardString() const;
+    
+    /// Get board as multi-line string (RHGHDR format with line breaks)
+    std::string getBoardStringMultiLine() const;
 
     /// Traverse through the board
     inline void traverse(std::function<void(int, int, Orb)> func)
+    {
+        for (int i = 0; i < row; i++)
+        {
+            for (int j = 0; j < column; j++)
+            {
+                auto orb = board[INDEX_OF(i, j)];
+                func(i, j, orb);
+            }
+        }
+    }
+    
+    /// Traverse through the board (const version)
+    inline void traverse(std::function<void(int, int, Orb)> func) const
     {
         for (int i = 0; i < row; i++)
         {
