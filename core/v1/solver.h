@@ -100,6 +100,11 @@ class PSolver
     std::vector<OrbMoveplan> planNineGridMoves(const PBoard& board, const NineTarget& target, bool verbose = false) const;
     std::vector<Route> solveNineGridTargeted(const SolverConfig& config) const;
     
+    /// 9宫格路径生成辅助方法
+    std::vector<Route> generateNineGridRoutes(const NineTarget& target, const std::vector<OrbMoveplan>& movePlan, const SolverConfig& config) const;
+    PState* buildOptimalNineGridState(const NineTarget& target, const std::vector<OrbMoveplan>& movePlan) const;
+    std::vector<std::pair<int, int>> calculateOptimalMoveSequence(const std::vector<OrbMoveplan>& movePlan) const;
+    
     /// Helper method to get orb from PBoard
     pad::orbs getOrbAt(const PBoard& pboard, int x, int y) const;
 
