@@ -98,36 +98,30 @@ class PSolver
     int estimateNineGridSteps(const PBoard& board, int centerX, int centerY, pad::orbs targetColor) const;
     int estimateNineGridCombos(const PBoard& board, int centerX, int centerY, pad::orbs targetColor, bool verbose = false) const;
     std::vector<OrbMoveplan> planNineGridMoves(const PBoard& board, const NineTarget& target, bool verbose = false) const;
-    std::vector<Route> solveNineGridTargeted(const SolverConfig& config) const;
     
-    /// 9宫格路径生成辅助方法
-    std::vector<Route> generateNineGridRoutes(const NineTarget& target, const std::vector<OrbMoveplan>& movePlan, const SolverConfig& config) const;
-    PState* buildOptimalNineGridState(const NineTarget& target, const std::vector<OrbMoveplan>& movePlan) const;
-    std::vector<std::pair<int, int>> calculateOptimalMoveSequence(const std::vector<OrbMoveplan>& movePlan) const;
+    
+    /// 9宫格路径生成辅助方法已清理
     bool validateNineGridFormation(const Route& route, pad::orbs targetColor, bool verbose = false) const;
+    bool validate2x3Formation(const Route& route, pad::orbs targetColor, bool verbose = false) const;
     
-    /// 分布式聚集算法专用的9宫格求解方法
-    std::vector<Route> solveNineGridDistributed(const SolverConfig& config) const;
-    
-    /// 分布式算法：第一阶段 - 珠子聚集
-    std::vector<std::pair<int, int>> phaseOneGatherOrbs(const NineTarget& target, bool verbose = false) const;
-    
-    /// 分布式算法：第二阶段 - 精确排列
-    std::vector<std::pair<int, int>> phaseTwoArrangeGrid(const PBoard& clusteredBoard, const NineTarget& target, const std::pair<int, int>& phase1EndPos, bool verbose = false) const;
-    
-    /// 分布式算法：珠子聚集策略
-    std::vector<std::pair<int, int>> moveOrbToCluster(const PBoard& board, int fromX, int fromY, const NineTarget& target) const;
-    
-    /// 创建精确的移动序列
-    std::vector<std::pair<int, int>> createPreciseMoveSequence(const std::pair<int, int>& from, const std::pair<int, int>& to, const PBoard& board) const;
-    
-    /// 分布式路径转换为Route的辅助方法
-    Route* convertDistributedPathToRoute(const std::vector<std::pair<int, int>>& distributedPath, 
-                                        const NineTarget& target, 
-                                        const SolverConfig& config) const;
     
     /// Helper method to get orb from PBoard
     pad::orbs getOrbAt(const PBoard& pboard, int x, int y) const;
+    
+    /// Helper method to set orb in PBoard
+    void setOrbAt(PBoard& pboard, int x, int y, pad::orbs newOrb) const;
+    
+    /// 新的路径执行系统 - 正确模拟珠子移动
+    Route* executeOrbMovementPath(const std::vector<std::pair<int, int>>& path, 
+                                  const NineTarget& target, 
+                                  const SolverConfig& config) const;
+    
+    /// 创建简单的移动路径（先水平后垂直）
+    std::vector<std::pair<int, int>> createSimplePath(const std::pair<int, int>& from, const std::pair<int, int>& to) const;
+    
+    /// 灵活的逐步形成3x3算法：先形成上方2x3，再完成最后一行
+    std::vector<Route> solveNineGridFlexible(const SolverConfig& config) const;
+    std::vector<std::pair<int, int>> buildRowByRowPath(const NineTarget& target, pad::orbs targetColor, const SolverConfig& config) const;
 
 public:
     /// This is the original board
