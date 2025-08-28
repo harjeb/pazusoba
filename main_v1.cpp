@@ -46,6 +46,38 @@ int main(int argc, char *argv[])
             std::cout << std::endl;
         }
         
+        if (config.enableLProfile && !config.lColors.empty()) {
+            std::cout << "  L-shape priority colors: ";
+            for (auto color : config.lColors) {
+                std::cout << SolverConfig::colorToString(color) << " ";
+            }
+            std::cout << std::endl;
+        }
+        
+        if (config.enableTwoWayProfile && !config.twoWayColors.empty()) {
+            std::cout << "  Two-way priority colors: ";
+            for (auto color : config.twoWayColors) {
+                std::cout << SolverConfig::colorToString(color) << " ";
+            }
+            std::cout << std::endl;
+        }
+        
+        if (config.enableOneRowProfile && !config.oneRowColors.empty()) {
+            std::cout << "  One-row priority colors: ";
+            for (auto color : config.oneRowColors) {
+                std::cout << SolverConfig::colorToString(color) << " ";
+            }
+            std::cout << std::endl;
+        }
+        
+        if (config.enableOneColumnProfile && !config.oneColumnColors.empty()) {
+            std::cout << "  One-column priority colors: ";
+            for (auto color : config.oneColumnColors) {
+                std::cout << SolverConfig::colorToString(color) << " ";
+            }
+            std::cout << std::endl;
+        }
+        
         if (config.enablePlusConstraint && !config.plusColors.empty()) {
             std::cout << "  Plus FORCED mode colors: ";
             for (auto color : config.plusColors) {
@@ -120,6 +152,26 @@ SolverConfig parseArguments(int argc, char **argv)
             std::string colors = arg.substr(7);
             config.enableNineProfile = true;
             config.nineColors = SolverConfig::parseColorList(colors);
+        }
+        else if (arg.find("--l=") == 0) {
+            std::string colors = arg.substr(4);
+            config.enableLProfile = true;
+            config.lColors = SolverConfig::parseColorList(colors);
+        }
+        else if (arg.find("--two-way=") == 0) {
+            std::string colors = arg.substr(10);
+            config.enableTwoWayProfile = true;
+            config.twoWayColors = SolverConfig::parseColorList(colors);
+        }
+        else if (arg.find("--row=") == 0) {
+            std::string colors = arg.substr(6);
+            config.enableOneRowProfile = true;
+            config.oneRowColors = SolverConfig::parseColorList(colors);
+        }
+        else if (arg.find("--column=") == 0) {
+            std::string colors = arg.substr(9);
+            config.enableOneColumnProfile = true;
+            config.oneColumnColors = SolverConfig::parseColorList(colors);
         }
         else if (arg.find("--plus-force=") == 0) {
             std::string colors = arg.substr(13);

@@ -68,6 +68,10 @@ void SolverConfig::printUsage()
     std::cout << "  --colors=COLORS    - Priority colors (e.g., RBG for Red,Blue,Green)\n";
     std::cout << "  --plus=COLORS      - Enable plus(+) priority for colors\n";
     std::cout << "  --nine=COLORS      - Enable 9-grid priority for colors\n";
+    std::cout << "  --l=COLORS         - Enable L-shape priority for colors\n";
+    std::cout << "  --two-way=COLORS   - Enable 2U-shape priority for colors\n";
+    std::cout << "  --row=COLORS       - Enable one-row priority for colors\n";
+    std::cout << "  --column=COLORS    - Enable one-column priority for colors\n";
     std::cout << "  --plus-force=COLORS - FORCE plus(+) shape (must form cross if enough orbs)\n";
     std::cout << "  --nine-force=COLORS - FORCE 9-grid shape (must form 3x3 if enough orbs)\n";
     std::cout << "  --no-diagonal      - Disable diagonal movement\n";
@@ -86,5 +90,7 @@ void SolverConfig::printUsage()
     std::cout << "  pazusoba_v1.exe \"RGBLDH...\" --colors=RB --plus=L\n";
     std::cout << "  pazusoba_v1.exe board.txt 3 50 --nine=G --no-diagonal\n";
     std::cout << "  pazusoba_v1.exe \"RGBLDH...\" --plus-force=G --verbose\n";
-    std::cout << "  pazusoba_v1.exe \"RGBLDH...\" --nine-force=B --no-board\n\n";
+    std::cout << "  pazusoba_v1.exe \"RGBLDH...\" --nine-force=B --no-board\n";
+    std::cout << "  pazusoba_v1.exe \"RGBLDH...\" --l=R --two-way=B --verbose\n";
+    std::cout << "  pazusoba_v1.exe \"RGBLDH...\" --row=G --column=L --no-transform\n\n";
 }

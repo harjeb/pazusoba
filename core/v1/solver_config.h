@@ -26,8 +26,16 @@ struct SolverConfig
     // Shape priority settings
     bool enablePlusProfile = false;      // 十字类型
     bool enableNineProfile = false;      // 9宫格类型
+    bool enableLProfile = false;         // L型
+    bool enableTwoWayProfile = false;    // 2U型
+    bool enableOneRowProfile = false;    // 单行型
+    bool enableOneColumnProfile = false; // 单列型
     std::vector<pad::orbs> plusColors;   // 十字优先颜色
     std::vector<pad::orbs> nineColors;   // 9宫格优先颜色
+    std::vector<pad::orbs> lColors;      // L型优先颜色
+    std::vector<pad::orbs> twoWayColors; // 2U型优先颜色
+    std::vector<pad::orbs> oneRowColors; // 单行优先颜色
+    std::vector<pad::orbs> oneColumnColors; // 单列优先颜色
     
     // Constraint mode settings (强制约束模式)
     bool enablePlusConstraint = false;   // 十字强制约束：有足够珠子就必须组成十字

@@ -160,6 +160,38 @@ std::vector<Profile*> PSolver::createProfiles(const SolverConfig &config) const
         profiles.push_back(new NineProfile(config.nineColors));
     }
     
+    // Add L-shape profile
+    if (config.enableLProfile && !config.lColors.empty()) {
+        if (config.verbose) {
+            std::cout << "[DEBUG] Creating LProfile" << std::endl;
+        }
+        profiles.push_back(new LProfile(config.lColors));
+    }
+    
+    // Add TwoWay profile
+    if (config.enableTwoWayProfile && !config.twoWayColors.empty()) {
+        if (config.verbose) {
+            std::cout << "[DEBUG] Creating TwoWayProfile" << std::endl;
+        }
+        profiles.push_back(new TwoWayProfile(config.twoWayColors));
+    }
+    
+    // Add OneRow profile
+    if (config.enableOneRowProfile && !config.oneRowColors.empty()) {
+        if (config.verbose) {
+            std::cout << "[DEBUG] Creating OneRowProfile" << std::endl;
+        }
+        profiles.push_back(new OneRowProfile(config.oneRowColors));
+    }
+    
+    // Add OneColumn profile
+    if (config.enableOneColumnProfile && !config.oneColumnColors.empty()) {
+        if (config.verbose) {
+            std::cout << "[DEBUG] Creating OneColumnProfile" << std::endl;
+        }
+        profiles.push_back(new OneColumnProfile(config.oneColumnColors));
+    }
+    
     return profiles;
 }
 
