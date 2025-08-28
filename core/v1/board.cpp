@@ -45,8 +45,8 @@ ComboList PBoard::eraseComboAndMoveOrbs(int *moveCount)
             {
                 auto loc = OrbLocation(i, j);
                 auto orb = board[loc.index];
-                // Ignore empty orbs
-                if (orb == pad::empty)
+                // Ignore empty orbs, seal orbs (cannot form combos), and random orbs (unpredictable)
+                if (orb == pad::empty || orb == pad::seal || orb == pad::random)
                     continue;
 
                 // Start finding combos
@@ -84,6 +84,9 @@ void PBoard::floodfill(Combo *list, const OrbLocation &loc, const Orb &orb, bool
         return;
 
     auto currOrb = board[loc.index];
+    // Seal orbs and random orbs cannot participate in combos
+    if (currOrb == pad::seal || currOrb == pad::random)
+        return;
     // only accept if current orb is the target orb
     if (currOrb != orb && temp[loc.index] < 1)
         return;
@@ -243,42 +246,49 @@ bool PBoard::moveOrbsDown()
     bool changed = false;
     for (int j = 0; j < column; j++)
     {
-        std::vector<pad::orbs> orbs;
-        orbs.reserve(row);
-        int emptyCount = 0;
-        // Start checking from the bottom most column
+        std::vector<std::pair<pad::orbs, int>> orbsWithPos;
+        orbsWithPos.reserve(row);
+        
+        // First pass: collect all non-empty, non-seal orbs and their positions
         for (int i = row - 1; i >= 0; i--)
         {
             auto orb = board[INDEX_OF(i, j)];
-            if (orb != pad::empty)
-                orbs.push_back(orb);
-            else
-                emptyCount++;
-        }
-
-        // Must be less than column (it means that this column is all empty)
-        if (emptyCount > 0 && emptyCount < column)
-        {
-            // Fill the saved orbs
-            int k = 0, s = (int)orbs.size();
-            for (int i = row - 1; i >= 0; i--, k++)
+            if (orb != pad::empty && orb != pad::seal)
             {
-                int index = INDEX_OF(i, j);
-                if (k >= s)
-                {
-                    board[index] = pad::empty;
-                }
-                else
-                {
-                    // If column is 5, i starts from 4 so the index of orb is 5 - 1 - 4 = 0
-                    auto orb = orbs[k];
-                    auto currOrb = board[index];
-                    board[index] = orb;
-
-                    // Board is changed if currOrb is not actually orb
-                    if (currOrb != orb)
-                        changed = true;
-                }
+                orbsWithPos.push_back({orb, i});
+            }
+        }
+        
+        // Second pass: place orbs from bottom up, avoiding seal positions
+        std::vector<pad::orbs> newColumn(row, pad::empty);
+        
+        // Keep seal orbs in their original positions
+        for (int i = 0; i < row; i++)
+        {
+            auto orb = board[INDEX_OF(i, j)];
+            if (orb == pad::seal)
+                newColumn[i] = pad::seal;
+        }
+        
+        // Place movable orbs from bottom up, skipping seal positions
+        int orbIndex = 0;
+        for (int i = row - 1; i >= 0 && orbIndex < (int)orbsWithPos.size(); i--)
+        {
+            if (newColumn[i] != pad::seal) // Skip seal positions
+            {
+                newColumn[i] = orbsWithPos[orbIndex].first;
+                orbIndex++;
+            }
+        }
+        
+        // Check if column changed and update board
+        for (int i = 0; i < row; i++)
+        {
+            int index = INDEX_OF(i, j);
+            if (board[index] != newColumn[i])
+            {
+                board[index] = newColumn[i];
+                changed = true;
             }
         }
     }
@@ -436,4 +446,15 @@ int PBoard::getMaxCombo(int *counter)
     } while (moreComboCount > 0);
 
     return comboCounter;
+}
+
+ComboList PBoard::simulateComboElimination(int *moveCount)
+{
+    // This is just a public wrapper for the private eraseComboAndMoveOrbs
+    return eraseComboAndMoveOrbs(moveCount);
+}
+
+Board PBoard::getBoardArray() const
+{
+    return board;
 }

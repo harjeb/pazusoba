@@ -29,17 +29,18 @@ namespace pad
         bomb,
         poison,
         poison_plus,
-        seal,
+        seal,           // S珠 - 障碍珠，无法移动且阻挡路径
         disabled,
+        random,         // ?珠 - 随机珠，6种属性随机变换
         unknown
     };
-    const int ORB_COUNT = 14;
+    const int ORB_COUNT = 15;
     /// For displaying the orb name
-    const std::string ORB_NAMES[ORB_COUNT] = {" ", "Fire", "Water", "Wood", "Light", "Dark", "Heal", "Jammer", "Bomb", "Poison", "Poison+", "Tape", "-X-", "???"};
+    const std::string ORB_NAMES[ORB_COUNT] = {" ", "Fire", "Water", "Wood", "Light", "Dark", "Heal", "Jammer", "Bomb", "Poison", "Poison+", "Stone", "-X-", "Random", "???"};
     /// Some emulation websites use these names for orbs (not all orbs are supported)
-    const std::string ORB_SIMULATION_NAMES[ORB_COUNT] = {" ", "R", "B", "G", "L", "D", "H", "J", "E", "P", "T", "=", "X", "?"};
+    const std::string ORB_SIMULATION_NAMES[ORB_COUNT] = {" ", "R", "B", "G", "L", "D", "H", "J", "E", "P", "T", "S", "X", "?", "U"};
     /// Weight for all orbs, heal and bomb are priority, how to use this properly though?
-    const double ORB_WEIGHTS[ORB_COUNT] = {0, 1, 1, 1, 1, 1, 2, 1, 3, 0.9, 0.8, 0, 0, 0};
+    const double ORB_WEIGHTS[ORB_COUNT] = {0, 1, 1, 1, 1, 1, 2, 1, 3, 0.9, 0.8, 0, 0, 0.1, 0};
 
     /// All 8 possible directions to move to
     enum direction

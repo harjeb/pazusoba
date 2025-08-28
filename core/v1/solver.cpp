@@ -192,6 +192,12 @@ std::vector<Profile*> PSolver::createProfiles(const SolverConfig &config) const
         profiles.push_back(new OneColumnProfile(config.oneColumnColors));
     }
     
+    // Always add RandomAvoidanceProfile to prevent dangerous random orb layouts
+    profiles.push_back(new RandomAvoidanceProfile());
+    if (config.verbose) {
+        std::cout << "[DEBUG] Creating RandomAvoidanceProfile" << std::endl;
+    }
+    
     return profiles;
 }
 

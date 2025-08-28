@@ -19,6 +19,8 @@ pad::orbs SolverConfig::parseColor(const std::string& colorStr)
     if (lower == "l" || lower == "light" || lower == "yellow") return pad::light;
     if (lower == "d" || lower == "dark" || lower == "purple") return pad::dark;
     if (lower == "h" || lower == "heal" || lower == "recovery") return pad::recovery;
+    if (lower == "s" || lower == "seal" || lower == "stone") return pad::seal;
+    if (lower == "?" || lower == "random") return pad::random;
     
     return pad::unknown;
 }
@@ -32,6 +34,8 @@ std::string SolverConfig::colorToString(pad::orbs color)
         case pad::light: return "L(Light)";
         case pad::dark: return "D(Dark)";
         case pad::recovery: return "H(Heal)";
+        case pad::seal: return "S(Stone)";
+        case pad::random: return "?(Random)";
         default: return "Unknown";
     }
 }

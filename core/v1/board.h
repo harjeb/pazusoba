@@ -146,6 +146,12 @@ public:
     /// Get board as string (RHGHDR format)
     std::string getBoardString() const;
     
+    /// Simulate combo elimination and orb falling (public version for prediction)
+    ComboList simulateComboElimination(int *moveCount);
+    
+    /// Get current board state as Board array
+    Board getBoardArray() const;
+    
     /// Get board as multi-line string (RHGHDR format with line breaks)
     std::string getBoardStringMultiLine() const;
 
@@ -184,6 +190,10 @@ public:
     inline void swapLocation(const OrbLocation &one, const OrbLocation &two)
     {
         if (!validLocation(one) || !validLocation(two))
+            return;
+            
+        // Seal orbs (S珠) cannot be moved
+        if (board[one.index] == pad::seal || board[two.index] == pad::seal)
             return;
 
         auto temp = board[one.index];

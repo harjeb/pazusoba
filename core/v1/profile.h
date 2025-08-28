@@ -1107,4 +1107,112 @@ public:
     }
 };
 
+/// Profile to avoid dangerous layouts with random orbs
+class RandomAvoidanceProfile : public Profile
+{
+public:
+    RandomAvoidanceProfile() : Profile() {}
+
+    std::string getProfileName() const override
+    {
+        return "RandomAvoidance";
+    }
+
+    /// Simulate the complete combo elimination and falling process
+    Board simulateBoardAfterCombos(Board board) const
+    {
+        Configuration &config = Configuration::shared();
+        int column = config.getColumn();
+        
+        PBoard tempBoard(board);
+        int moveCount = 0;
+        
+        // Use the public wrapper to simulate the entire process
+        tempBoard.simulateComboElimination(&moveCount);
+        
+        // Return the final board state
+        return tempBoard.getBoardArray();
+    }
+
+    /// Check if a random orb is sandwiched between two same-color orbs in any board state
+    bool hasRandomDanger(const Board &board) const
+    {
+        Configuration &config = Configuration::shared();
+        int row = config.getRow();
+        int column = config.getColumn();
+        
+        for (int i = 0; i < row; i++)
+        {
+            for (int j = 0; j < column; j++)
+            {
+                int index = i * column + j;
+                if (board[index] == pad::random)
+                {
+                    // Check horizontal: ?珠左右是否有相同颜色
+                    if (j > 0 && j < column - 1)
+                    {
+                        int leftIndex = i * column + (j - 1);
+                        int rightIndex = i * column + (j + 1);
+                        pad::orbs leftOrb = board[leftIndex];
+                        pad::orbs rightOrb = board[rightIndex];
+                        
+                        // 跳过empty, seal, random等特殊珠子
+                        if (leftOrb != pad::empty && leftOrb != pad::seal && leftOrb != pad::random &&
+                            rightOrb != pad::empty && rightOrb != pad::seal && rightOrb != pad::random &&
+                            leftOrb == rightOrb)
+                        {
+                            return true; // 危险：?珠夹在两个相同颜色珠子之间
+                        }
+                    }
+                    
+                    // Check vertical: ?珠上下是否有相同颜色
+                    if (i > 0 && i < row - 1)
+                    {
+                        int upIndex = (i - 1) * column + j;
+                        int downIndex = (i + 1) * column + j;
+                        pad::orbs upOrb = board[upIndex];
+                        pad::orbs downOrb = board[downIndex];
+                        
+                        // 跳过empty, seal, random等特殊珠子
+                        if (upOrb != pad::empty && upOrb != pad::seal && upOrb != pad::random &&
+                            downOrb != pad::empty && downOrb != pad::seal && downOrb != pad::random &&
+                            upOrb == downOrb)
+                        {
+                            return true; // 危险：?珠夹在两个相同颜色珠子之间
+                        }
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /// Check for dangerous layouts during the entire elimination and falling process
+    bool hasRandomDangerInProcess(const Board &initialBoard) const
+    {
+        // Use the simplified simulation method
+        Board finalBoard = simulateBoardAfterCombos(initialBoard);
+        
+        // Check if the final state creates dangerous layouts
+        return hasRandomDanger(finalBoard);
+    }
+
+    int getScore(const ComboList &list, const Board &board, int moveCount) const override
+    {
+        // Check for immediate danger in current board
+        if (hasRandomDanger(board))
+        {
+            return -50000;
+        }
+        
+        // Check for danger in the entire elimination and falling process
+        if (hasRandomDangerInProcess(board))
+        {
+            return -25000; // Less penalty than immediate danger, but still significant
+        }
+        
+        return 0; // No danger detected
+    }
+};
+
 #endif
