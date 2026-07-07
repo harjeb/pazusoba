@@ -6,3 +6,6 @@
 {"author":"harjeb","created_at":"2026-07-07T07:58:33Z","id":6,"issue_id":"pazusoba-mb6","text":"已开始实现新增 6 种模式：blocked、7x6 验证、connected_orb 颜色过滤、target_combo 颜色权重、shape_template/shape_solver 覆盖 cross/row/column。"}
 {"author":"harjeb","created_at":"2026-07-07T08:07:28Z","id":7,"issue_id":"pazusoba-mb6","text":"验证通过：g++ -std=c++14 -O2 -Iinclude support\\\\test_six_modes.cpp src\\\\pazusoba.cpp src\\\\shape_solver.cpp；运行 build\\\\test_six_modes.exe 通过。原有 support\\\\test.cpp 回归同样通过。"}
 {"author":"harjeb","created_at":"2026-07-07T08:09:59Z","id":8,"issue_id":"pazusoba-mb6","text":"实现完成：颜色优先使用 bool orbs[ORB_COUNT] 掩码，支持多个颜色（如 R+G）；shape_request.colors 同样支持多颜色 only/prefer。"}
+{"author":"harjeb","created_at":"2026-07-07T08:10:45Z","id":9,"issue_id":"pazusoba-mb6","text":"收尾：移除 shape_request 中未生效的 A* 预留字段，当前 shape_solver 明确使用构造法；重新编译并运行 test_six_modes 通过。"}
+{"author":"harjeb","created_at":"2026-07-07T08:18:16Z","id":10,"issue_id":"pazusoba-3q9","text":"随机测试完成：固定 seed=20260707，10 组无初始横/竖 3 连 6x5 盘面 + 10 组 7x6 盘面。6 个模式全部 10/10，通过 route 重放和 blocked 校验，最大单项耗时约 122ms，报告生成到 docs/six_modes_random_report.md。"}
+{"author":"harjeb","created_at":"2026-07-07T08:20:56Z","id":11,"issue_id":"pazusoba-m1p","text":"原因确认：原生成器 shuffle 后又按 remaining 降序排序，R/G 配额更高导致行优先填充几乎固定为 R/G 开头。已改为洗牌完整珠子池并拒绝初始三连的重试生成，报告已重新生成，6 个模式仍全部 10/10。"}
