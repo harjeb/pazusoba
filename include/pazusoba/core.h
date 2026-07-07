@@ -11,6 +11,7 @@
 
 #include "hash.h"
 #include "pazusoba.h"
+#include "shape.h"
 #include "timer.h"
 
 #endif

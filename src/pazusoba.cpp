@@ -7,22 +7,26 @@
 
 #include <pazusoba/core.h>
 #include <algorithm>
+#include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <map>
 #include <queue>
+#include <sstream>
 #include <thread>
 #include <vector>
 
 namespace pazusoba {
 state solver::adventure() {
     int REAL_BEAM_SIZE = BEAM_SIZE * 1.4;
+    int max_children = ALLOW_DIAGONAL ? DIRECTION_COUNT : 4;
+    VISITED.clear();
     // setup the state, non blocking
     std::vector<state> look;
     look.reserve(REAL_BEAM_SIZE);
     // insert to temp, sort and copy back to look
     std::vector<state> temp;
-    temp.resize(REAL_BEAM_SIZE * 3);
+    temp.resize(REAL_BEAM_SIZE * max_children);
     // TODO: using array can definitely things a lot because the vector needs to
     // write a lot of useless data before using it, reverse is better but the
     // address calculation can be tricky
@@ -32,6 +36,8 @@ state solver::adventure() {
 
     // assign all possible states to look
     for (int i = 0; i < BOARD_SIZE; ++i) {
+        if (BLOCKED[i])
+            continue;
         state new_state;
         new_state.curr = i;
         new_state.prev = i;
@@ -42,6 +48,8 @@ state solver::adventure() {
 
     // setup threading
     int processor_count = std::thread::hardware_concurrency();
+    if (processor_count <= 0)
+        processor_count = 1;
     // unsigned int processor_count = 1;
     std::vector<std::thread> threads;
     threads.reserve(processor_count);
@@ -56,12 +64,16 @@ state solver::adventure() {
         int look_size = look.size();
         DEBUG_PRINT("Depth %d - size %d\n", i + 1, look_size);
         int look_size_thread = look_size / processor_count;
+        for (auto& s : temp)
+            s.score = MIN_STATE_SCORE;
 
         // #pragma omp parallel for
         for (int thread_num = 0; thread_num < processor_count; thread_num++) {
             threads.emplace_back([&, thread_num, look_size_thread] {
                 int start_index = thread_num * (look_size_thread);
-                int end_index = start_index + look_size_thread;
+                int end_index = (thread_num == processor_count - 1)
+                                    ? look_size
+                                    : start_index + look_size_thread;
                 for (int j = start_index; j < end_index; j++) {
                     if (found_max_combo)
                         continue;  // early stop
@@ -93,8 +105,10 @@ state solver::adventure() {
 
         // sorting
         auto begin = temp.begin();
+        auto top_end = begin + std::min<int>(REAL_BEAM_SIZE, temp.size());
         auto end = temp.end();
-        std::sort(begin, end, std::greater<state>());
+        std::nth_element(begin, top_end, end, std::greater<state>());
+        std::sort(begin, top_end, std::greater<state>());
 
         for (int i = 0; i < 5; i++) {
             // print_state(temp[i]);
@@ -109,10 +123,10 @@ state solver::adventure() {
         int index = 0;
         for (int j = 0; j < REAL_BEAM_SIZE; j++, index++) {
             const auto& curr = temp[j];
-            if (VISITED[curr.hash]) {
+            if (VISITED.find(curr.hash) != VISITED.end()) {
                 index--;
             } else {
-                VISITED[curr.hash] = true;
+                VISITED.insert(curr.hash);
                 if (curr.score > best_state.score) {
                     best_state = curr;
                     stop_count = 0;
@@ -146,19 +160,52 @@ void solver::expand(const game_board& board,
     auto prev = current.prev;
     auto curr = current.curr;
     auto step = current.step;
+    int max_children = ALLOW_DIAGONAL ? DIRECTION_COUNT : 4;
+    int slot = 0;
     for (int i = 0; i < count; i++) {
-        // this is set from parse_args()
-        int adjustments = DIRECTION_ADJUSTMENTS[i];
-        tiny next = curr + adjustments;
-        // todo: right edge can be checked before the calculation
+        int curr_row = curr / COLUMN;
+        int curr_col = curr % COLUMN;
+        int next_row = curr_row;
+        int next_col = curr_col;
+        switch (i) {
+            case up:
+                next_row--;
+                break;
+            case down:
+                next_row++;
+                break;
+            case left:
+                next_col--;
+                break;
+            case right:
+                next_col++;
+                break;
+            case up_left:
+                next_row--;
+                next_col--;
+                break;
+            case up_right:
+                next_row--;
+                next_col++;
+                break;
+            case down_left:
+                next_row++;
+                next_col--;
+                break;
+            case down_right:
+                next_row++;
+                next_col++;
+                break;
+            default:
+                continue;
+        }
+        if (next_row < 0 || next_row >= ROW || next_col < 0 || next_col >= COLUMN)
+            continue;  // invalid, out of bound
+        int next = INDEX_OF(next_row, next_col);
         if (next == prev)
             continue;  // invalid, same position
-        if (next - curr == 1 && next % COLUMN == 0)
-            continue;  // invalid, on the right edge
-        if (curr - next == 1 && curr % COLUMN == 0)
-            continue;  // invalid, on the left edge
-        if (next >= BOARD_SIZE)
-            continue;  // invalid, out of bound
+        if (BLOCKED[next])
+            continue;  // blocked cell cannot be entered
 
         state new_state;
         new_state.step = step + 1;
@@ -185,21 +232,19 @@ void solver::expand(const game_board& board,
         new_board[next] = temp;
 
         // calculate the hash
-        new_state.hash = hash::pazusoba_hash(new_board.data(), new_state.prev);
+        new_state.hash = hash::pazusoba_hash(new_board.data(), new_state.curr);
 
         // backup the board
         evaluate(new_board, new_state);
 
-        // insert to the states
-        if (step == 0)
-            states[loc * 4 + i] = new_state;
-        else
-            states[loc * 3 + i] = new_state;
+        // insert to the states using compact per-node slots
+        states[loc * max_children + slot] = new_state;
+        slot++;
     }
 }
 
 void solver::evaluate(game_board& board, state& new_state) {
-    short int score = 0;
+    int score = 0;
     // TODO: should this be after??
     // scan the board to get the distance between each orb
     orb_distance distance[ORB_COUNT];
@@ -218,8 +263,25 @@ void solver::evaluate(game_board& board, state& new_state) {
         score -= (dist.max - dist.min);
     }
 
+    auto adjacency_score = [&](const profile* p) {
+        int guide = 0;
+        for (int i = 0; i < BOARD_SIZE; i++) {
+            if (board[i] == 0)
+                continue;
+            int weight = 4;
+            if (p != nullptr && p->orbs[board[i]])
+                weight = 8;
+            if (i % COLUMN != COLUMN - 1 && board[i] == board[i + 1])
+                guide += weight;
+            if (i + COLUMN < BOARD_SIZE && board[i] == board[i + COLUMN])
+                guide += weight;
+        }
+        return std::min(guide, 200);
+    };
+
     // erase the board and find out the combo number
     combo_list list;  // TODO: 515ms here, destructor is slow
+    combo_list all_list;
 
     int combo = 0;
     int move_count = 0;
@@ -238,9 +300,9 @@ void solver::evaluate(game_board& board, state& new_state) {
 
         // Check if there are more combo
         if (combo_count > 0) {
-            // 修复：combo应该是连锁的轮数，而不是累加每轮的combo数量
-            combo = move_count + 1;  // combo等于当前轮数
-            DEBUG_PRINT("Current combo chain length: %d\n", combo);
+            combo += combo_count;
+            all_list.insert(all_list.end(), list.begin(), list.end());
+            DEBUG_PRINT("Current combo count: %d\n", combo);
 
             // 保存当前棋盘状态
             prev_board = copy;
@@ -281,28 +343,55 @@ void solver::evaluate(game_board& board, state& new_state) {
         switch (profile.name) {
             case target_combo: {
                 int target = profile.target;
+                int preferred_combo = 0;
+                for (const auto& c : all_list) {
+                    if (profile.orbs[c.info])
+                        preferred_combo++;
+                }
+                int guide = adjacency_score(&profile);
                 if (target == -1) {
                     // max combo
-                    score += combo * 20;
-                    if (combo == MAX_COMBO)
+                    score += combo * 1000 + guide - new_state.step;
+                    if (profile.colour_target <= 0) {
+                        score += preferred_combo * 300;
+                    } else {
+                        int lack = profile.colour_target - preferred_combo;
+                        if (lack > 0)
+                            score -= lack * 1500;
+                        else
+                            score += preferred_combo * 300;
+                    }
+                    if (combo == MAX_COMBO &&
+                        (profile.colour_target <= 0 || preferred_combo >= profile.colour_target))
                         goal++;
                 } else {
                     // only do max target combo
                     if (combo < target)
-                        score -= (7 - target) * 30;
+                        score -= (target - combo) * 1000;
                     if (combo == target)
-                        score += 50;
+                        score += combo * 1000 + guide - new_state.step;
                     else if (target > 7)
-                        score -= 50;
+                        score -= 500;
 
-                    if (combo == target)
+                    if (profile.colour_target <= 0) {
+                        score += preferred_combo * 300;
+                    } else {
+                        int lack = profile.colour_target - preferred_combo;
+                        if (lack > 0)
+                            score -= lack * 1500;
+                        else
+                            score += preferred_combo * 300;
+                    }
+
+                    if (combo == target &&
+                        (profile.colour_target <= 0 || preferred_combo >= profile.colour_target))
                         goal++;
                 }
             } break;
 
             case colour: {
                 int colour_counter[ORB_COUNT]{0};
-                for (const auto& c : list) {
+                for (const auto& c : all_list) {
                     colour_counter[c.info]++;
                 }
 
@@ -324,7 +413,7 @@ void solver::evaluate(game_board& board, state& new_state) {
 
             case colour_combo: {
                 int colour_counter[ORB_COUNT]{0};
-                for (const auto& c : list) {
+                for (const auto& c : all_list) {
                     colour_counter[c.info]++;
                 }
 
@@ -348,15 +437,24 @@ void solver::evaluate(game_board& board, state& new_state) {
             case connected_orb: {
                 int target = profile.target;
                 bool fulfilled = false;
+                bool has_orb_filter = false;
+                for (int j = 0; j < ORB_COUNT; ++j) {
+                    if (profile.orbs[j]) {
+                        has_orb_filter = true;
+                        break;
+                    }
+                }
 
-                for (const auto& c : list) {
+                for (const auto& c : all_list) {
+                    if (has_orb_filter && !profile.orbs[c.info])
+                        continue;
                     int connected_count = c.loc.size();
                     if (ORB_COUNTER[c.info] >= target) {
                         if (connected_count < target) {
                             score += (connected_count - MIN_ERASE) * 10;
                         } else if (connected_count == target) {
-                            // fulfilled = true;
-                            score += 50;
+                            fulfilled = true;
+                            score += 100;
                         } else {
                             score -= (connected_count - target) * 50;
                         }
@@ -364,6 +462,8 @@ void solver::evaluate(game_board& board, state& new_state) {
                 }
 
                 score += combo * 20;
+                if (fulfilled)
+                    score += 20000;
 
                 if (fulfilled)
                     goal++;
@@ -382,7 +482,7 @@ void solver::evaluate(game_board& board, state& new_state) {
             } break;
 
             case shape_L: {
-                for (const auto& c : list) {
+                for (const auto& c : all_list) {
                     if (profile.orbs[c.info] && ORB_COUNTER[c.info] >= 5) {
                         int size = c.loc.size();
                         if (size == 5) {
@@ -433,7 +533,7 @@ void solver::evaluate(game_board& board, state& new_state) {
             } break;
 
             case shape_plus: {
-                for (const auto& c : list) {
+                for (const auto& c : all_list) {
                     if (profile.orbs[c.info] && ORB_COUNTER[c.info] >= 5) {
                         int size = c.loc.size();
                         if (size <= 5)
@@ -484,22 +584,15 @@ void solver::evaluate(game_board& board, state& new_state) {
             case shape_square: {
                 // FORCE 3x3 MODE: Massively prioritize 3x3 squares over everything else
                 bool found_3x3 = false;
-                printf("DEBUG: Checking %d combos for 3x3 squares\n", (int)list.size());
-                for (const auto& c : list) {
-                    printf("DEBUG: Combo of orb %d, size %d, orb_counter[%d]=%d\n", 
-                           c.info, (int)c.loc.size(), c.info, ORB_COUNTER[c.info]);
+                for (const auto& c : all_list) {
                     if (profile.orbs[c.info] && ORB_COUNTER[c.info] >= 9) {
                         int size = c.loc.size();
                         if (size >= 9) {
                             // Check if it forms a 3x3 square
-                            printf("DEBUG: Checking 3x3 for orb %d with size %d\n", c.info, size);
                             if (is_3x3_square(c.loc, COLUMN)) {
-                                printf("DEBUG: FOUND 3x3 SQUARE! Orb %d\n", c.info);
                                 score += 50000;  // MASSIVE score for 3x3
                                 goal++;
                                 found_3x3 = true;
-                            } else {
-                                printf("DEBUG: Not a 3x3 square\n");
                             }
                         }
                     }
@@ -515,7 +608,7 @@ void solver::evaluate(game_board& board, state& new_state) {
                 
                 // If no 3x3 found, look for potential 3x3 formation
                 // Check for clusters of 6+ orbs that could become 3x3
-                for (const auto& c : list) {
+                for (const auto& c : all_list) {
                     if (ORB_COUNTER[c.info] >= 9) {
                         int size = c.loc.size();
                         if (size >= 6) {
@@ -579,140 +672,84 @@ void solver::evaluate(game_board& board, state& new_state) {
 
 void solver::erase_combo(game_board& board, combo_list& list) {
     DEBUG_PRINT("=== erase_combo called ===\n");
-    visit_board visited_location{0};
-    
-    // First, check for 3x3 squares (9-grid pattern)
-    check_3x3_squares(board, list, visited_location);
-    
-    // Then, check for regular combos
-    for (int curr_index = BOARD_SIZE - 1; curr_index >= 0; curr_index--) {
-        if (visited_location[curr_index])
-            continue;  // already visited even if it is not erased
+    visit_board marked{0};
+    visit_board visited{0};
 
-        auto orb = board[curr_index];
-        if (orb == 0)
-            continue;  // already erased
+    for (int row = 0; row < ROW; ++row) {
+        int col = 0;
+        while (col < COLUMN) {
+            int start = col;
+            orb current = board[INDEX_OF(row, col)];
+            while (col < COLUMN && board[INDEX_OF(row, col)] == current)
+                ++col;
 
-        combo c(orb);
-        std::queue<int> visit_queue;
-        visit_queue.emplace(curr_index);
-
-        // start exploring until all connected orbs are visited
-        int visit_count = 0;
-        const int MAX_VISIT_COUNT = BOARD_SIZE * 2;  // 防止无限循环
-
-        while (!visit_queue.empty() && visit_count < MAX_VISIT_COUNT) {
-            int to_visit = visit_queue.front();
-            visit_queue.pop();
-            visit_count++;
-
-            // number of connected orbs in all directions
-            int counter[4]{0};
-
-            // check all four directions
-            for (int i = 0; i < 4; i++) {
-                int direction = DIRECTION_ADJUSTMENTS[i];
-                // this needs to be unsigned to avoid negatives
-                tiny next = to_visit;
-                int step_count = 0;
-                const int MAX_STEPS = BOARD_SIZE;  // 防止单方向无限循环
-
-                // going in that direction until a different orb is found
-                while (step_count < MAX_STEPS) {
-                    if (direction == -1 && next % COLUMN == 0)
-                        break;  // invalid, on the left edge
-
-                    next += direction;
-                    step_count++;
-
-                    if (direction == 1 && next % COLUMN == 0)
-                        break;  // invalid, on the right edge
-                    if (next >= BOARD_SIZE)
-                        break;  // invalid, out of bound
-
-                    if (board[next] == orb) {
-                        // same colour
-                        visited_location[next] = true;
-                        counter[i]++;
-
-                        // check if there are orbs in the different direction
-                        for (int j = 0; j < 4; j++) {
-                            if (i < 2 && j < 2)
-                                continue;  // only search left & right
-                            if (i >= 2 && j >= 2)
-                                continue;  // only search up & down
-
-                            int direction = DIRECTION_ADJUSTMENTS[j];
-                            tiny nearby = next;
-                            if (direction == -1 && nearby % COLUMN == 0)
-                                continue;  // invalid, on the left edge
-
-                            nearby += direction;
-
-                            if (direction == 1 && nearby % COLUMN == 0)
-                                continue;  // invalid, on the right edge
-                            if (nearby >= BOARD_SIZE)
-                                continue;  // invalid, out of bound
-                            if (visited_location[nearby])
-                                continue;  // invalid, already visited
-
-                            // same orb in different direction, should visit
-                            if (board[nearby] == orb) {
-                                // check next first before nearby
-                                visit_queue.emplace(next);
-                                visit_queue.emplace(nearby);
-                            }
-                        }
-                    } else {
-                        break;  // different colour
-                    }
-                }
-
-                if (step_count >= MAX_STEPS) {
-                    DEBUG_PRINT("WARNING: Maximum steps reached in direction %d, breaking to prevent infinite loop\n", i);
-                }
+            int length = col - start;
+            if (current != 0 && length >= MIN_ERASE) {
+                for (int c = start; c < col; ++c)
+                    marked[INDEX_OF(row, c)] = true;
             }
-
-            if (visit_count >= MAX_VISIT_COUNT) {
-                DEBUG_PRINT("WARNING: Maximum visit count reached, breaking to prevent infinite loop\n");
-            }
-
-            // only 2 same orbs are needed to make 3 in a row
-            if (counter[0] + counter[1] >= 2) {
-                c.loc.insert(to_visit);
-                board[to_visit] = 0;
-                // up & down
-                for (int i = -counter[0]; i <= counter[1]; i++) {
-                    if (i == 0)
-                        continue;  // this is the source orb itself
-                    // convert index to location, -1 moves -6 for 6x5
-                    auto index = to_visit + i * COLUMN;
-                    c.loc.insert(index);
-                    board[index] = 0;
-                }
-            }
-
-            if (counter[2] + counter[3] >= 2) {
-                c.loc.insert(to_visit);
-                board[to_visit] = 0;
-                // left & right
-                for (int i = -counter[2]; i <= counter[3]; i++) {
-                    if (i == 0)
-                        continue;  // this is the source orb itself
-                    auto index = to_visit + i;
-                    c.loc.insert(index);
-                    board[index] = 0;
-                }
-            }
-        }
-
-        // add this combo to the list
-        if ((int)c.loc.size() >= MIN_ERASE) {
-            list.push_back(c);
-            DEBUG_PRINT("Regular combo added: size %d, color %d\n", (int)c.loc.size(), c.info);
         }
     }
-    
+
+    for (int col = 0; col < COLUMN; ++col) {
+        int row = 0;
+        while (row < ROW) {
+            int start = row;
+            orb current = board[INDEX_OF(row, col)];
+            while (row < ROW && board[INDEX_OF(row, col)] == current)
+                ++row;
+
+            int length = row - start;
+            if (current != 0 && length >= MIN_ERASE) {
+                for (int r = start; r < row; ++r)
+                    marked[INDEX_OF(r, col)] = true;
+            }
+        }
+    }
+
+    for (int start = 0; start < BOARD_SIZE; ++start) {
+        if (!marked[start] || visited[start])
+            continue;
+
+        orb current = board[start];
+        combo c(current);
+        std::queue<int> q;
+        q.push(start);
+        visited[start] = true;
+
+        while (!q.empty()) {
+            int loc = q.front();
+            q.pop();
+            c.loc.insert(loc);
+
+            for (int i = 0; i < 4; ++i) {
+                int next = loc + DIRECTION_ADJUSTMENTS[i];
+                if (i == up && loc < COLUMN)
+                    continue;
+                if (i == down && next >= BOARD_SIZE)
+                    continue;
+                if (i == left && loc % COLUMN == 0)
+                    continue;
+                if (i == right && loc % COLUMN == COLUMN - 1)
+                    continue;
+                if (next < 0 || next >= BOARD_SIZE)
+                    continue;
+                if (!marked[next] || visited[next] || board[next] != current)
+                    continue;
+
+                visited[next] = true;
+                q.push(next);
+            }
+        }
+
+        if ((int)c.loc.size() >= MIN_ERASE) {
+            for (int loc : c.loc)
+                board[loc] = 0;
+            list.push_back(c);
+            DEBUG_PRINT("Combo added: size %d, color %d\n", (int)c.loc.size(), c.info);
+        }
+    }
+
     DEBUG_PRINT("Total combos found in erase_combo: %d\n", (int)list.size());
 }
 
@@ -799,9 +836,31 @@ void solver::parse_args(int argc, char* argv[]) {
         set_beam_size(beam_size);
     }
 
-    if (argc > 5) {
-        if (strcmp(argv[5], "--diagonal") == 0 || strcmp(argv[5], "-d") == 0) {
+    for (int i = 5; i < argc; ++i) {
+        if (strcmp(argv[i], "--diagonal") == 0 || strcmp(argv[i], "-d") == 0) {
             set_diagonal(true);
+        } else if (strncmp(argv[i], "--blocked=", 10) == 0) {
+            std::vector<int> positions;
+            std::stringstream ss(argv[i] + 10);
+            std::string token;
+            while (std::getline(ss, token, ',')) {
+                if (!token.empty())
+                    positions.push_back(std::atoi(token.c_str()));
+            }
+            set_blocked(positions.data(), (int)positions.size());
+        } else if (strncmp(argv[i], "--blocked-rc=", 13) == 0) {
+            std::vector<int> positions;
+            std::stringstream ss(argv[i] + 13);
+            std::string token;
+            while (std::getline(ss, token, ',')) {
+                size_t sep = token.find(':');
+                if (sep == std::string::npos)
+                    continue;
+                int row = std::atoi(token.substr(0, sep).c_str());
+                int col = std::atoi(token.substr(sep + 1).c_str());
+                positions.push_back(INDEX_OF(row, col));
+            }
+            set_blocked(positions.data(), (int)positions.size());
         }
     }
 
@@ -818,6 +877,11 @@ void solver::parse_args(int argc, char* argv[]) {
 
 void solver::set_board(const char* board_string) {
     int board_size = strlen(board_string);
+    BOARD.fill(0);
+    ORB_COUNTER.fill(0);
+    VISITED.clear();
+    BLOCKED.fill(false);
+    BLOCKED_COUNT = 0;
 
     // there are only 3 fixed size board -> 20, 30 or 42
     if (board_size > MAX_BOARD_LENGTH) {
@@ -906,6 +970,22 @@ void solver::set_profiles(profile* profiles, int count) {
         // use the largest threshold
         if (STOP_THRESHOLD < profiles[i].stop_threshold)
             STOP_THRESHOLD = profiles[i].stop_threshold;
+    }
+}
+
+void solver::set_blocked(const int* positions, int count) {
+    BLOCKED.fill(false);
+    BLOCKED_COUNT = 0;
+    for (int i = 0; i < count; ++i) {
+        int p = positions[i];
+        if (p < 0 || p >= BOARD_SIZE) {
+            printf("WARNING: blocked position %d ignored, out of board\n", p);
+            continue;
+        }
+        if (!BLOCKED[p]) {
+            BLOCKED[p] = true;
+            BLOCKED_COUNT++;
+        }
     }
 }
 

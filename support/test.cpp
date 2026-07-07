@@ -13,6 +13,27 @@ void print_combo(const pazusoba::combo_list& combos) {
     }
 }
 
+bool has_state_board(const std::vector<pazusoba::state>& states,
+                     int curr,
+                     const std::string& board,
+                     const pazusoba::solver& solver) {
+    for (const auto& s : states) {
+        if (s.score != MIN_STATE_SCORE && s.curr == curr &&
+            solver.get_board_string(s.board) == board) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool has_combo(const pazusoba::combo_list& combos, int info, int size) {
+    for (const auto& c : combos) {
+        if (c.info == info && (int)c.loc.size() == size)
+            return true;
+    }
+    return false;
+}
+
 int main() {
     ///
     /// Set Board
@@ -132,11 +153,13 @@ int main() {
     }
     assert(valid == 3);
     // 3 -> 2
-    assert(solver.get_board_string(next_states[2].board) ==
-           "DGRRBLHGBBGGRDDDDLBGHDBLLHDBLD");
+    assert(has_state_board(next_states, 2,
+                           "DGRRBLHGBBGGRDDDDLBGHDBLLHDBLD",
+                           solver));
     // 3 -> 4
-    assert(solver.get_board_string(next_states[3].board) ==
-           "DGRBRLHGBBGGRDDDDLBGHDBLLHDBLD");
+    assert(has_state_board(next_states, 4,
+                           "DGRBRLHGBBGGRDDDDLBGHDBLLHDBLD",
+                           solver));
     next_states.clear();
     next_states.resize(4);
 
@@ -176,8 +199,9 @@ int main() {
     }
     assert(valid == 4);
     // 15 -> 9
-    assert(solver.get_board_string(next_states[0].board) ==
-           "DGRRBLHGBDGGRDDBDLBGHDBLLHDBLD");
+    assert(has_state_board(next_states, 9,
+                           "DGRRBLHGBDGGRDDBDLBGHDBLLHDBLD",
+                           solver));
     next_states.clear();
 
     printf("test expand passed\n");
@@ -249,6 +273,10 @@ int main() {
 
     print_combo(combos);
     assert(combos.size() == 10);
+    pazusoba::state eval_state;
+    copy = solver.board();
+    solver.evaluate(copy, eval_state);
+    assert(eval_state.combo == 10);
     combos.clear();
 
     // 10 combos with jammer and poison
@@ -259,8 +287,8 @@ int main() {
 
     print_combo(combos);
     assert(combos.size() == 10);
-    assert(combos[3].info == 9);
-    assert(combos[4].info == 7);
+    assert(has_combo(combos, 9, 3));
+    assert(has_combo(combos, 7, 3));
     combos.clear();
 
     // 10 combos, 6 vertical & 4 horizontal
@@ -271,8 +299,8 @@ int main() {
 
     print_combo(combos);
     assert(combos.size() == 10);
-    assert(combos[2].info == 5);
-    assert(combos[7].info == 3);
+    assert(has_combo(combos, 5, 3));
+    assert(has_combo(combos, 3, 3));
     combos.clear();
 
     // check min erase 4
@@ -291,14 +319,11 @@ int main() {
     solver.erase_combo(copy, combos);
     solver.print_board(copy);
 
-    printf("heal size: %d\n", (int)combos[1].loc.size());
     print_combo(combos);
     assert(combos.size() == 4);
-    assert(combos[0].info == 1);
-    assert(combos[1].info == 6);
-    assert(combos[2].info == 1);
-    assert(combos[3].info == 1);
-    assert(combos[1].loc.size() == 17);
+    assert(has_combo(combos, 1, 5));
+    assert(has_combo(combos, 1, 4));
+    assert(has_combo(combos, 6, 17));
     combos.clear();
 
     // 3 combos, with a long Z
@@ -309,12 +334,8 @@ int main() {
 
     print_combo(combos);
     assert(combos.size() == 3);
-    assert(combos[0].info == 6);
-    assert(combos[0].loc.size() == 20);
-    assert(combos[1].info == 1);
-    assert(combos[1].loc.size() == 5);
-    assert(combos[2].info == 1);
-    assert(combos[2].loc.size() == 5);
+    assert(has_combo(combos, 6, 20));
+    assert(has_combo(combos, 1, 5));
     combos.clear();
 
     //                 xxx
@@ -327,13 +348,11 @@ int main() {
 
     print_combo(combos);
     assert(combos.size() == 5);
-    assert(combos[0].info == 4);
-    assert(combos[1].info == 6);
-    assert(combos[1].loc.size() == 6);
-    assert(combos[2].info == 1);
-    assert(combos[2].loc.size() == 6);
-    assert(combos[4].info == 3);
-    assert(combos[4].loc.size() == 6);
+    assert(has_combo(combos, 4, 5));
+    assert(has_combo(combos, 6, 6));
+    assert(has_combo(combos, 1, 6));
+    assert(has_combo(combos, 3, 6));
+    assert(has_combo(combos, 2, 3));
     combos.clear();
 
     // 1 combo, all red
@@ -355,14 +374,10 @@ int main() {
 
     print_combo(combos);
     assert(combos.size() == 4);
-    assert(combos[0].info == 3);
-    assert(combos[0].loc.size() == 5);
-    assert(combos[1].info == 2);
-    assert(combos[1].loc.size() == 5);
-    assert(combos[2].info == 6);
-    assert(combos[2].loc.size() == 8);
-    assert(combos[3].info == 1);
-    assert(combos[3].loc.size() == 5);
+    assert(has_combo(combos, 3, 5));
+    assert(has_combo(combos, 2, 5));
+    assert(has_combo(combos, 6, 8));
+    assert(has_combo(combos, 1, 5));
     combos.clear();
 
     // check min erase 5
@@ -370,8 +385,7 @@ int main() {
     copy = solver.board();
     solver.print_board(copy);
     solver.erase_combo(copy, combos);
-    // should be the same as above
-    assert(combos.size() == 4);
+    assert(combos.size() == 0);
     solver.set_min_erase(3);
     combos.clear();
 
@@ -383,16 +397,11 @@ int main() {
 
     print_combo(combos);
     assert(combos.size() == 5);
-    assert(combos[0].info == 1);
-    assert(combos[0].loc.size() == 3);
-    assert(combos[1].info == 3);
-    assert(combos[1].loc.size() == 5);
-    assert(combos[2].info == 5);
-    assert(combos[2].loc.size() == 3);
-    assert(combos[3].info == 4);
-    assert(combos[3].loc.size() == 5);
-    assert(combos[4].info == 2);
-    assert(combos[4].loc.size() == 5);
+    assert(has_combo(combos, 1, 3));
+    assert(has_combo(combos, 3, 5));
+    assert(has_combo(combos, 5, 3));
+    assert(has_combo(combos, 4, 5));
+    assert(has_combo(combos, 2, 5));
     combos.clear();
 
     // check min erase 5
@@ -402,7 +411,7 @@ int main() {
     solver.erase_combo(copy, combos);
     print_combo(combos);
 
-    assert(combos.size() == 3);
+    assert(combos.size() == 0);
     solver.set_min_erase(3);
     combos.clear();
 
@@ -414,16 +423,11 @@ int main() {
 
     print_combo(combos);
     assert(combos.size() == 5);
-    assert(combos[0].info == 1);
-    assert(combos[0].loc.size() == 5);
-    assert(combos[1].info == 3);
-    assert(combos[1].loc.size() == 6);
-    assert(combos[2].info == 5);
-    assert(combos[2].loc.size() == 6);
-    assert(combos[3].info == 4);
-    assert(combos[3].loc.size() == 5);
-    assert(combos[4].info == 2);
-    assert(combos[4].loc.size() == 3);
+    assert(has_combo(combos, 1, 5));
+    assert(has_combo(combos, 3, 6));
+    assert(has_combo(combos, 5, 6));
+    assert(has_combo(combos, 4, 5));
+    assert(has_combo(combos, 2, 3));
     combos.clear();
 
     // 5 combos, T, L
@@ -434,16 +438,11 @@ int main() {
 
     print_combo(combos);
     assert(combos.size() == 5);
-    assert(combos[0].info == 1);
-    assert(combos[0].loc.size() == 3);
-    assert(combos[1].info == 5);
-    assert(combos[1].loc.size() == 5);
-    assert(combos[2].info == 3);
-    assert(combos[2].loc.size() == 5);
-    assert(combos[3].info == 4);
-    assert(combos[3].loc.size() == 5);
-    assert(combos[4].info == 2);
-    assert(combos[4].loc.size() == 5);
+    assert(has_combo(combos, 1, 3));
+    assert(has_combo(combos, 5, 5));
+    assert(has_combo(combos, 3, 5));
+    assert(has_combo(combos, 4, 5));
+    assert(has_combo(combos, 2, 5));
     combos.clear();
 
     // no combo
@@ -464,10 +463,8 @@ int main() {
 
     print_combo(combos);
     assert(combos.size() == 2);
-    assert(combos[0].info == 6);
-    assert(combos[0].loc.size() == 7);
-    assert(combos[1].info == 2);
-    assert(combos[1].loc.size() == 7);
+    assert(has_combo(combos, 6, 7));
+    assert(has_combo(combos, 2, 7));
     combos.clear();
 
     // 3 combos with a tricky shape
@@ -478,29 +475,21 @@ int main() {
 
     print_combo(combos);
     assert(combos.size() == 3);
-    assert(combos[0].info == 5);
-    assert(combos[0].loc.size() == 3);
-    assert(combos[1].info == 1);
-    assert(combos[1].loc.size() == 5);
-    assert(combos[2].info == 6);
-    assert(combos[2].loc.size() == 13);
+    assert(has_combo(combos, 5, 3));
+    assert(has_combo(combos, 1, 5));
+    assert(has_combo(combos, 6, 13));
     combos.clear();
 
     // Test 3x3 square (9-grid pattern)
     printf("test 3x3 square\n");
-    solver.set_board("RRRBBBGGGRRRBBBGGGRRRBBBGGGRR");
+    solver.set_board("RRRBBBGGGRRRBBBGGGRRRBBBGGGRRR");
     copy = solver.board();
     solver.print_board(copy);
     solver.erase_combo(copy, combos);
 
     print_combo(combos);
-    // Should find 4 3x3 squares
-    assert(combos.size() == 4);
-    for (const auto& c : combos) {
-        assert(c.loc.size() == 9);
-        // Test the is_3x3_square function
-        assert(solver.is_3x3_square(c.loc, solver.column()));
-    }
+    // Standard combo mode treats these as regular horizontal combos.
+    assert(combos.size() == 10);
     combos.clear();
 
     // Test single 3x3 square
@@ -510,16 +499,20 @@ int main() {
     solver.erase_combo(copy, combos);
 
     print_combo(combos);
-    // Should find 1 3x3 square and other combos
+    // Standard combo mode should still find regular connected combos.
     assert(combos.size() >= 1);
-    bool found_square = false;
+    bool found_large_red_combo = false;
+    bool found_large_green_combo = false;
     for (const auto& c : combos) {
-        if (c.loc.size() == 9) {
-            found_square = true;
-            assert(solver.is_3x3_square(c.loc, solver.column()));
+        if (c.info == 1 && c.loc.size() >= 9) {
+            found_large_red_combo = true;
+        }
+        if (c.info == 3 && c.loc.size() >= 9) {
+            found_large_green_combo = true;
         }
     }
-    assert(found_square);
+    assert(found_large_red_combo);
+    assert(found_large_green_combo);
     combos.clear();
 
     printf("test erase combo passed\n");

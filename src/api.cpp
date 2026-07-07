@@ -39,8 +39,16 @@ c_state convert(const pazusoba::solver& solver, const pazusoba::state& state) {
     c_state.routes[0].row = state.begin / column;
     c_state.routes[0].column = state.begin % column;
 
-    // up, down, left and right
-    int directions[] = {-column, column, -1, 1};
+    int directions[] = {
+        -column,
+        column,
+        -1,
+        1,
+        -column - 1,
+        -column + 1,
+        column - 1,
+        column + 1,
+    };
     // get the route from state
     const auto& route = state.route;
 

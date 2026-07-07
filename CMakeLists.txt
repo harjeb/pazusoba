@@ -38,7 +38,7 @@ link_libraries(Threads::Threads)
 include_directories(include)
 # find all source files under src/
 # file(GLOB_RECURSE PAZUSOBA_SOURCES "src/*.cpp")
-set(PAZUSOBA_SOURCES src/pazusoba.cpp)
+set(PAZUSOBA_SOURCES src/pazusoba.cpp src/shape_solver.cpp)
 
 # use release by default
 if (NOT CMAKE_BUILD_TYPE)
@@ -81,11 +81,28 @@ if(${build_type} STREQUAL "release")
         ${PAZUSOBA_SOURCES}
     )
 
+    add_executable(
+        test_six_modes
+        support/test_six_modes.cpp
+        ${PAZUSOBA_SOURCES}
+    )
+
+    add_executable(
+        random_six_modes_report
+        support/random_six_modes_report.cpp
+        ${PAZUSOBA_SOURCES}
+    )
+
     # complete 3x3 heuristic
     add_executable(
         complete_3x3_heuristic
         support/complete_3x3_heuristic.cpp
         ${PAZUSOBA_SOURCES}
+    )
+
+    add_executable(
+        benchmark_3x3_schemes
+        support/benchmark_3x3_schemes.cpp
     )
 else()
     message(STATUS "Generating for DEBUG")
@@ -102,6 +119,18 @@ else()
     add_executable(
         test_pazusoba
         ${TEST_CPP}
+        ${PAZUSOBA_SOURCES}
+    )
+
+    add_executable(
+        test_six_modes
+        support/test_six_modes.cpp
+        ${PAZUSOBA_SOURCES}
+    )
+
+    add_executable(
+        random_six_modes_report
+        support/random_six_modes_report.cpp
         ${PAZUSOBA_SOURCES}
     )
 endif()

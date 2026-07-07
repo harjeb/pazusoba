@@ -5,7 +5,6 @@
 #include <array>
 #include <deque>
 #include <string>
-#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -40,7 +39,9 @@ typedef std::array<long long int, MAX_DEPTH / ROUTE_PER_LIST + 1> route_list;
 const char ORB_WEB_NAME[ORB_COUNT] = {' ', 'R', 'B', 'G', 'L', 'D',
                                       'H', 'J', 'E', 'P', 'T'};
 
-const char DIRECTION_NAME[4] = {'U', 'D', 'L', 'R'};
+// Diagonal route letters follow keyboard/numpad positions:
+// Q=up-left, E=up-right, Z=down-left, C=down-right.
+const char DIRECTION_NAME[DIRECTION_COUNT] = {'U', 'D', 'L', 'R', 'Q', 'E', 'Z', 'C'};
 
 /// All 8 possible directions
 enum DIRECTIONS {
@@ -65,7 +66,7 @@ struct state {
     tiny combo = 0;
     bool goal = false;
     long long int hash;
-    short int score = MIN_STATE_SCORE;
+    int score = MIN_STATE_SCORE;
     // 64 bits can store 21 steps 3 * 21
     // if we don't include diagonals,
     // 64 bits can store 32 steps 2 * 32
@@ -93,6 +94,9 @@ struct profile {
     int stop_threshold = 20;
     // Which orbs should be considered
     int target = -1;
+    // For target_combo with colour priority: 0 means soft preference,
+    // positive means at least N combos of selected colours.
+    int colour_target = 0;
     bool orbs[ORB_COUNT]{false};
 };
 
@@ -129,7 +133,9 @@ class solver {
     // count the number of each orb to calculate the max combo (not 100%
     // correct)
     std::array<orb, ORB_COUNT> ORB_COUNTER;
-    std::unordered_map<long long int, bool> VISITED;
+    std::unordered_set<long long int> VISITED;
+    std::array<bool, MAX_BOARD_LENGTH> BLOCKED{};
+    int BLOCKED_COUNT = 0;
 
     // initalise after board size is decided
     int DIRECTION_ADJUSTMENTS[DIRECTION_COUNT];
@@ -163,6 +169,7 @@ public:
     void set_beam_size(int);
     void set_diagonal(bool);
     void set_profiles(profile*, int);
+    void set_blocked(const int*, int);
 
     void print_board(const game_board&) const;
     void print_state(const state&) const;
@@ -179,6 +186,8 @@ public:
     int max_combo() const { return MAX_COMBO; }
     int board_size() const { return BOARD_SIZE; }
     const game_board& board() const { return BOARD; }
+    const std::array<bool, MAX_BOARD_LENGTH>& blocked() const { return BLOCKED; }
+    bool diagonal() const { return ALLOW_DIAGONAL; }
 };
 }  // namespace pazusoba
 
