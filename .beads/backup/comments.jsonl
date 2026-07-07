@@ -9,3 +9,6 @@
 {"author":"harjeb","created_at":"2026-07-07T08:10:45Z","id":9,"issue_id":"pazusoba-mb6","text":"收尾：移除 shape_request 中未生效的 A* 预留字段，当前 shape_solver 明确使用构造法；重新编译并运行 test_six_modes 通过。"}
 {"author":"harjeb","created_at":"2026-07-07T08:18:16Z","id":10,"issue_id":"pazusoba-3q9","text":"随机测试完成：固定 seed=20260707，10 组无初始横/竖 3 连 6x5 盘面 + 10 组 7x6 盘面。6 个模式全部 10/10，通过 route 重放和 blocked 校验，最大单项耗时约 122ms，报告生成到 docs/six_modes_random_report.md。"}
 {"author":"harjeb","created_at":"2026-07-07T08:20:56Z","id":11,"issue_id":"pazusoba-m1p","text":"原因确认：原生成器 shuffle 后又按 remaining 降序排序，R/G 配额更高导致行优先填充几乎固定为 R/G 开头。已改为洗牌完整珠子池并拒绝初始三连的重试生成，报告已重新生成，6 个模式仍全部 10/10。"}
+{"author":"harjeb","created_at":"2026-07-07T08:32:17Z","id":12,"issue_id":"pazusoba-9bh","text":"已在随机报告中新增 Combo 列，形状模式对最终盘面重新 evaluate，4连模式使用搜索结果 state.combo；重新生成 docs/six_modes_random_report.md，测试通过。"}
+{"author":"harjeb","created_at":"2026-07-07T08:36:36Z","id":13,"issue_id":"pazusoba-7oa","text":"用户确认：所有模式都要满足规则后 combo 越多越好，不只是 4 连；继续改报告和求解选择策略。"}
+{"author":"harjeb","created_at":"2026-07-07T08:41:16Z","id":14,"issue_id":"pazusoba-7oa","text":"已实现规则优先 + combo 次级最大化：shape_solver 遍历全部可行候选并选择最终 combo 最高结果；connected_orb 满足规则加硬约束奖励，报告 4连模式改为 connected_orb + target_combo 叠加评分。验证：random_six_modes_report、test_six_modes、test_pazusoba 均通过。"}
